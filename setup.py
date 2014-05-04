@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 with open('README.rst') as fp:
-    long_description = fp.read().split('\n-----\n', 1)[1].lstrip()
+    long_description = fp.read().split('\n\n-----\n\n', 1)[1].lstrip()
 
 setup(
     name='daemonocle',
