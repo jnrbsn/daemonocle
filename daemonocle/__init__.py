@@ -269,26 +269,28 @@ class Daemon(object):
         # Get the current PID and GPID
         pid = os.getpid()
         pgid = os.getpgrp()
-        try:
-            while True:
-                time.sleep(1)
+        while True:
+            try:
                 # Look for other processes in this process group
+                group_procs = []
                 for proc in psutil.process_iter():
                     try:
                         if os.getpgid(proc.pid) == pgid and proc.pid not in (0, pid):
                             # We found a process in this process group
-                            break
+                            group_procs.append(proc)
                     except (psutil.NoSuchProcess, OSError):
                         continue
+
+                if group_procs:
+                    psutil.wait_procs(group_procs, timeout=1)
                 else:
                     # No processes were found in this process group so we can exit
-                    cls._emit_message(
-                        'All processes have exited. Parent process is shutting down...\n')
+                    cls._emit_message('All children are gone. Parent is exiting...\n')
                     sys.exit(0)
-        except KeyboardInterrupt:
-            # Handle ^C
-            cls._emit_message('\n')
-            sys.exit(0)
+            except KeyboardInterrupt:
+                # Don't exit immediatedly on Ctrl-C, because we want to wait for the child processes to finish
+                cls._emit_message('\n')
+                continue
 
     def _shutdown(self, message=None, code=0):
         """Shutdown and cleanup everything"""
