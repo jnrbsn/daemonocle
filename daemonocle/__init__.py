@@ -474,6 +474,10 @@ class Daemon(object):
 
     def reload(self):
         """Allows the daemon to restart itself"""
+        pid = self._read_pidfile()
+        if pid is None or pid != os.getpid():
+            raise DaemonError('Daemon.reload() should only be called by the daemon process itself')
+
         # Copy the current environment
         new_environ = os.environ.copy()
         new_environ['DAEMONOCLE_RELOAD'] = 'true'
