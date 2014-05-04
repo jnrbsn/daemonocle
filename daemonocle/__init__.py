@@ -24,6 +24,12 @@ class DaemonError(Exception):
     pass
 
 
+def expose_action(func):
+    """Decorator for making a method as being an action"""
+    func.exposed_action = True
+    return func
+
+
 class Daemon(object):
     """Represents a Unix daemon"""
 
@@ -341,6 +347,7 @@ class Daemon(object):
 
         self._shutdown('Shutting down normally')
 
+    @expose_action
     def start(self):
         """Starts the daemon"""
         if os.environ.get('DAEMONOCLE_RELOAD'):
@@ -383,6 +390,7 @@ class Daemon(object):
 
         self._run()
 
+    @expose_action
     def stop(self):
         """Stops the daemon"""
         if self.pidfile is None:
@@ -425,11 +433,13 @@ class Daemon(object):
             # Print a custom message if we're reloading
             self._emit_message('OK\n')
 
+    @expose_action
     def restart(self):
         """Stops then starts"""
         self.stop()
         self.start()
 
+    @expose_action
     def status(self):
         """Prints the status of the daemon"""
         pid = self._read_pidfile()
@@ -474,6 +484,37 @@ class Daemon(object):
         template = '{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n'
         self._emit_message(template.format(**data))
 
+    def get_actions(self):
+        """Returns a list of exposed actions that are callable via do_action()"""
+        # Make sure these are always at the beginning of the list
+        actions = ['start', 'stop', 'restart', 'status']
+        # Iterate over the objects attributes checking for exposed actions
+        for func_name in dir(self):
+            func = getattr(self, func_name)
+            if not hasattr(func, '__call__') or getattr(func, 'exposed_action', False) is not True:
+                # Not a function or not exposed
+                continue
+            action = func_name.replace('_', '-')
+            if action not in actions:
+                actions.append(action)
+
+        return actions
+
+    def do_action(self, action):
+        """Used for automatically calling a user provided action"""
+        func_name = action.replace('-', '_')
+        if not hasattr(self, func_name):
+            # Function doesn't exist
+            raise DaemonError('Invalid action "{action}"'.format(action=action))
+
+        func = getattr(self, func_name)
+        if not hasattr(func, '__call__') or getattr(func, 'exposed_action', False) is not True:
+            # Not a function or not exposed
+            raise DaemonError('Invalid action "{action}"'.format(action=action))
+
+        # Call the function
+        func()
+
     def reload(self):
         """Allows the daemon to restart itself"""
         pid = self._read_pidfile()
@@ -485,9 +526,3 @@ class Daemon(object):
         new_environ['DAEMONOCLE_RELOAD'] = 'true'
         # Start a new python process with the same arguments as this one
         subprocess.call([sys.executable] + sys.argv, cwd=self._orig_workdir, env=new_environ)
-
-    def do_action(self, action):
-        """Used for automatically calling a user provided action"""
-        if action not in ('start', 'stop', 'restart', 'status'):
-            raise DaemonError('Invalid action "{action}"'.format(action=action))
-        getattr(self, action)()
