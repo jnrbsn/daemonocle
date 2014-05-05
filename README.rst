@@ -28,7 +28,28 @@ Or download the source code and install manually::
 Basic Usage
 -----------
 
-Here's a **really** basic example:
+Here's a **really really** basic example:
+
+.. code:: python
+
+    import sys
+    import time
+
+    import daemonocle
+
+    # This is your daemon. It sleeps, and then sleeps again.
+    def main():
+        while True:
+            time.sleep(10)
+
+    if __name__ == '__main__':
+        daemon = daemonocle.Daemon(
+            worker=main,
+            pidfile='/var/run/daemonocle_example.pid',
+        )
+        daemon.do_action(sys.argv[1])
+
+Here's another **really** basic example:
 
 .. code:: python
 
@@ -39,7 +60,7 @@ Here's a **really** basic example:
     import daemonocle
 
     def cb_shutdown(message, code):
-        logging.info('daemon is stopping')
+        logging.info('Daemon is stopping')
         logging.debug(message)
 
     def main():
@@ -47,9 +68,9 @@ Here's a **really** basic example:
             filename='/var/log/daemonocle_example.log',
             level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s',
         )
-        logging.info('daemon is starting')
+        logging.info('Daemon is starting')
         while True:
-            logging.debug('still running!')
+            logging.debug('Still running')
             time.sleep(10)
 
     if __name__ == '__main__':
@@ -69,13 +90,13 @@ And here's what it looks like when you run it::
     user@host:~$ python example.py stop
     Stopping example.py ... OK
     user@host:~$ cat /var/log/daemonocle_example.log
-    2014-05-04 12:39:21,090 [INFO] daemon is starting
-    2014-05-04 12:39:21,091 [DEBUG] still running!
-    2014-05-04 12:39:31,091 [DEBUG] still running!
-    2014-05-04 12:39:41,091 [DEBUG] still running!
-    2014-05-04 12:39:51,093 [DEBUG] still running!
-    2014-05-04 12:40:01,094 [DEBUG] still running!
-    2014-05-04 12:40:07,113 [INFO] daemon is stopping
+    2014-05-04 12:39:21,090 [INFO] Daemon is starting
+    2014-05-04 12:39:21,091 [DEBUG] Still running
+    2014-05-04 12:39:31,091 [DEBUG] Still running
+    2014-05-04 12:39:41,091 [DEBUG] Still running
+    2014-05-04 12:39:51,093 [DEBUG] Still running
+    2014-05-04 12:40:01,094 [DEBUG] Still running
+    2014-05-04 12:40:07,113 [INFO] Daemon is stopping
     2014-05-04 12:40:07,114 [DEBUG] Terminated by SIGTERM (15)
 
 For more details, see the `Detailed Usage`_ section below.
@@ -197,8 +218,12 @@ Self-Reload
 +++++++++++
 
 Daemons that use daemonocle have the ability to reload themselves by simply calling
-``daemon.reload()`` where ``daemon`` is your ``daemonocle.Daemon`` instance. Here's a basic example
-of a daemon that watches a config file and reloads when the config file changes:
+``daemon.reload()`` where ``daemon`` is your ``daemonocle.Daemon`` instance. The execution of the
+current daemon halts wherever ``daemon.reload()`` was called, and a new daemon is started up to
+replace the current one. From your code's perspective, it's pretty much the same as a doing a
+``restart`` except that it's initiated from within the daemon itself and there's no signal handling
+involved. Here's a basic example of a daemon that watches a config file and reloads itself when the
+config file changes:
 
 .. code:: python
 
@@ -237,17 +262,64 @@ of a daemon that watches a config file and reloads when the config file changes:
 Shutdown Callback
 +++++++++++++++++
 
-...
+You may have noticed from the `Basic Usage`_ section above that a ``shutdown_callback`` was defined.
+This function gets called whenever the daemon is shutting down in a catchable way, which should be
+most of the time except for a ``SIGKILL`` or if your server crashes unexpectedly or loses power or
+something like that. This function can be used for doing any sort of cleanup that your daemon needs
+to do. Also, if you want to log (to the logger of your choice) the reason for the shutdown and the
+intended exit code, you can use the ``message`` and ``code`` arguments that will be passed to your
+callback (your callback must take these two arguments).
 
 Non-Detached Mode
 +++++++++++++++++
 
-...
+This is not particularly interesting per se, but it's worth noting that in non-detached mode, your
+daemon will do everything else you've configured it to do (i.e. ``setuid``, ``setgid``, ``chroot``,
+etc.) except actually detaching from your terminal. So while you're testing, you can get an
+extremely accurate view of how your daemon will behave in the wild. It's also worth noting that
+self-reloading works in non-detached mode, which was a little tricky to figure out initially.
 
 File Descriptor Handling
 ++++++++++++++++++++++++
 
-...
+One of the things that daemons typically do is close all open file descriptors and establish new
+ones for ``STDIN``, ``STDOUT``, ``STDERR`` that just point to ``/dev/null``. This is fine most of
+the time, but if your worker is an instance method of a class that opens files in its ``__init__()``
+method, then you'll run into problems if you're not careful. **Fortunately, daemonocle only closes
+file descriptors that were open when the** ``daemonocle.Daemon`` **class was instantiated.** So if
+you open all your files after that, you're good.
+
+Here's an example of the **BAD** way to do it:
+
+.. code:: python
+
+    app = YourApp()  # <--- leaves files open
+    daemon = daemonocle.Daemon(worker=app.run)
+    daemon.do_action(sys.argv[1])
+
+Here's an example of a **GOOD** way to do it:
+
+.. code:: python
+
+    daemon = daemonocle.Daemon()
+    app = YourApp()
+    daemon.worker = app.run
+    daemon.do_action(sys.argv[1])
+
+Here's another **GOOD** way to do it:
+
+.. code:: python
+
+    def main():
+        app = YourApp()
+        app.run()
+
+    daemon = daemonocle.Daemon(worker=main)
+    daemon.do_action(sys.argv[1])
+
+This is **only** a problem if your class leaves files open upon instantiation. Otherwise, you don't
+have to worry about. Oh, and if your using a file handler for your logger, you can probably use the
+``delay=True`` option to avoid opening the file before it's needed.
 
 Detailed Usage
 --------------
