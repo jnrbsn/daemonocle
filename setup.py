@@ -24,6 +24,7 @@ setup(
         'Programming Language :: Python :: 2.7',
     ],
     keywords='daemon daemonize fork unix',
+    packages=['daemonocle'],
     install_requires=[
         'psutil==2.1.1',
     ],
