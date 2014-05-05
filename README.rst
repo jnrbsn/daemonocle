@@ -28,7 +28,9 @@ Or download the source code and install manually::
 Basic Usage
 -----------
 
-Here's a **really** basic example::
+Here's a **really** basic example:
+
+.. code:: python
 
     import logging
     import sys
@@ -36,23 +38,18 @@ Here's a **really** basic example::
 
     import daemonocle
 
-    logger = logging.getLogger(__name__)
-
     def cb_shutdown(message, code):
-        logger.info('daemon is stopping')
-        logger.debug(message)
+        logging.info('daemon is stopping')
+        logging.debug(message)
 
     def main():
-        logger.setLevel(logging.DEBUG)
-        log_handler = logging.FileHandler('/var/log/daemonocle_example.log')
-        log_handler.setLevel(logging.DEBUG)
-        log_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-        log_handler.setFormatter(log_formatter)
-        logger.addHandler(log_handler)
-
-        logger.info('daemon is starting')
+        logging.basicConfig(
+            filename='/var/log/daemonocle_example.log',
+            level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s',
+        )
+        logging.info('daemon is starting')
         while True:
-            logger.debug('still running!')
+            logging.debug('still running!')
             time.sleep(10)
 
     if __name__ == '__main__':
@@ -128,7 +125,7 @@ These are just a few examples of unnecessarily common problems. It doesn't have 
     for your daemon that checks whether or not it actually started, actually stopped, etc.?"
     Seriously? **It doesn't have to be this way.** I believe daemons should be more self-aware. They
     should handle their own problems most of the time, and your start/stop script should only be a
-    very thin wrapper around your daemon or simply a symlink to it.
+    very thin wrapper around your daemon or simply a symlink to your daemon.
 
 The Problem
 ~~~~~~~~~~~
@@ -167,10 +164,88 @@ for the process to finish (with a timeout). This is what daemonocle does. (Note:
 occurs, it doesn't try to send a ``SIGKILL``. This is not always what you'd want and often not a
 good idea.)
 
+Other Useful Features
+~~~~~~~~~~~~~~~~~~~~~
+
+Below are some other useful features that daemononcle provides that you might not find elsewhere.
+
+The ``status`` Action
++++++++++++++++++++++
+
+There is a ``status`` action that not only displays whether or not the daemon is running and its
+PID, but also the uptime of the daemon and the % CPU and % memory usage of all the processes in the
+same process group as the daemon (which are probably its children). So if you have a daemon that
+launches mulitple worker processes, the ``status`` action will show the % CPU and % memory usage of
+all the workers combined.
+
+It might look something like this::
+
+    user@host:~$ python example.py status
+    example.py -- pid: 1234, status: running, uptime: 12d 3h 4m, %cpu: 12.4, %mem: 4.5
+
+Slightly Smarter ``restart`` Action
++++++++++++++++++++++++++++++++++++
+
+Have you ever tried to restart a daemon only to realize that it's not actually running? Let me
+guess: it just gave you an error and didn't start the daemon. A lot of the time this is not a
+problem, but if you're trying to restart the daemon in an automated way, it's more annoying to have
+to check if it's running and do either a ``start`` or ``restart`` accordingly. With daemonocle, if
+you try to restart a daemon that's not running, it will give you a warning saying that it wasn't
+running and then start the daemon. This is often what people expect.
+
+Self-Reload
++++++++++++
+
+Daemons that use daemonocle have the ability to reload themselves by simply calling
+``daemon.reload()`` where ``daemon`` is your ``daemonocle.Daemon`` instance. Here's a basic example
+of a daemon that watches a config file and reloads when the config file changes:
+
+.. code:: python
+
+    import os
+    import sys
+    import time
+
+    import daemonocle
+
+    class FileWatcher(object):
+
+        def __init__(self, filename, daemon):
+            self._filename = filename
+            self._daemon = daemon
+            self._file_mtime = os.stat(self._filename).st_mtime
+
+        def file_has_changed(self):
+            current_mtime = os.stat(self._filename).st_mtime
+            if current_mtime != self._file_mtime:
+                self._file_mtime = current_mtime
+                return True
+            return False
+
+        def watch(self):
+            while True:
+                if self.file_has_changed():
+                    self._daemon.reload()
+                time.sleep(1)
+
+    if __name__ == '__main__':
+        daemon = daemonocle.Daemon(pidfile='/var/run/daemonocle_example.pid')
+        fw = FileWatcher(filename='/etc/daemonocle_example.conf', daemon=daemon)
+        daemon.worker = fw.watch
+        daemon.do_action(sys.argv[1])
+
+Shutdown Callback
++++++++++++++++++
+
 ...
 
-Other Notes
-~~~~~~~~~~~
+Non-Detached Mode
++++++++++++++++++
+
+...
+
+File Descriptor Handling
+++++++++++++++++++++++++
 
 ...
 
