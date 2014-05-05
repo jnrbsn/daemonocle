@@ -91,6 +91,9 @@ class Daemon(object):
 
     def _read_pidfile(self):
         """Reads the PID file and checks to make sure the corresponding process is running"""
+        if self.pidfile is None:
+            return None
+
         if not os.path.isfile(self.pidfile):
             return None
 
@@ -350,22 +353,33 @@ class Daemon(object):
     @expose_action
     def start(self):
         """Starts the daemon"""
-        if os.environ.get('DAEMONOCLE_RELOAD'):
-            # If this is actually a reload, we need to stop the existing daemon first
-            self.stop()
-
         if self.worker is None:
             raise DaemonError('No worker is defined for daemon')
 
-        if self.pidfile is not None:
-            # Check to see if the daemon is already running
+        if os.environ.get('DAEMONOCLE_RELOAD'):
+            # If this is actually a reload, we need to wait for the existing daemon to exit first
+            self._emit_message('Reloading {prog} ... '.format(prog=self.prog))
+            # Orhpan this process so the parent can exit
+            self._orphan_this_process(wait_for_parent=True)
             pid = self._read_pidfile()
             if pid is not None:
-                # I don't think this should not be a fatal error
-                self._emit_message('WARNING: {prog} already running with PID {pid}\n'.format(prog=self.prog, pid=pid))
-                return
+                # Wait for the process to exit
+                _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
+                if alive:
+                    # The process didn't exit for some reason
+                    self._emit_message('FAILED\n')
+                    message = 'Previous process (PID {pid}) did NOT exit during reload'.format(pid=pid)
+                    self._emit_error(message)
+                    self._shutdown(message, 1)
 
-        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
+        # Check to see if the daemon is already running
+        pid = self._read_pidfile()
+        if pid is not None:
+            # I don't think this should not be a fatal error
+            self._emit_message('WARNING: {prog} already running with PID {pid}\n'.format(prog=self.prog, pid=pid))
+            return
+
+        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and psutil.Process().terminal() is not None:
             # This keeps the original parent process open so that we maintain control of the tty
             self._fork_and_supervise_child()
 
@@ -397,22 +411,12 @@ class Daemon(object):
             raise DaemonError('Cannot stop daemon without PID file')
 
         pid = self._read_pidfile()
-
         if pid is None:
             # I don't think this should not be a fatal error
             self._emit_message('WARNING: {prog} not running\n'.format(prog=self.prog))
             return
 
-        if pid == os.getppid():
-            # If the process that we're terminating is the parent of this one, orphan this process
-            # first to avoid potential problems
-            self._orphan_this_process(wait_for_parent=True)
-
-        if os.environ.get('DAEMONOCLE_RELOAD'):
-            # Print a custom message if we're reloading
-            self._emit_message('Reloading {prog} ... '.format(prog=self.prog))
-        else:
-            self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
+        self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
 
         try:
             # Try to terminate the process
@@ -420,18 +424,16 @@ class Daemon(object):
         except OSError as ex:
             self._emit_message('FAILED\n')
             self._emit_error(str(ex))
-            os._exit(1)
+            sys.exit(1)
 
         _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
         if alive:
             # The process didn't terminate for some reason
             self._emit_message('FAILED\n')
             self._emit_error('Process with PID {pid} did NOT terminate'.format(pid=pid))
-            os._exit(1)
+            sys.exit(1)
 
-        if not os.environ.get('DAEMONOCLE_RELOAD'):
-            # Print a custom message if we're reloading
-            self._emit_message('OK\n')
+        self._emit_message('OK\n')
 
     @expose_action
     def restart(self):
@@ -442,6 +444,9 @@ class Daemon(object):
     @expose_action
     def status(self):
         """Prints the status of the daemon"""
+        if self.pidfile is None:
+            raise DaemonError('Cannot get status of daemon without PID file')
+
         pid = self._read_pidfile()
         if pid is None:
             self._emit_message('{prog} not running\n'.format(prog=self.prog))
@@ -526,3 +531,5 @@ class Daemon(object):
         new_environ['DAEMONOCLE_RELOAD'] = 'true'
         # Start a new python process with the same arguments as this one
         subprocess.call([sys.executable] + sys.argv, cwd=self._orig_workdir, env=new_environ)
+        # Exit this process
+        self._shutdown('Shutting down for reload')
