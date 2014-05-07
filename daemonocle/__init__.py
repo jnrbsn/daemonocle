@@ -30,6 +30,39 @@ def expose_action(func):
     return func
 
 
+def daemonize(**daemon_kwargs):
+    """Decorator for automatically daemonizing a function"""
+
+    def outer_wrapper(func):
+        """The "real" decorator"""
+
+        def inner_wrapper(*args, **kwargs):
+            """The returned function"""
+            # Assign the function as the worker
+            daemon_kwargs['worker'] = func
+            # Add a --debug option to force non-detached mode
+            if daemon_kwargs.get('detach') is None:
+                daemon_kwargs['detach'] = '--debug' not in sys.argv
+
+            daemon = Daemon(**daemon_kwargs)
+
+            # Make usage output
+            actions = daemon.get_actions()
+            if len(sys.argv) < 2 or sys.argv[1] not in actions:
+                sys.stderr.write('USAGE: {prog} ({actions}) [--debug]\n'.format(
+                    prog=daemon.prog, actions='|'.join(actions)
+                ))
+                sys.stderr.flush()
+                sys.exit(1)
+
+            # Run it
+            daemon.do_action(sys.argv[1])
+
+        return inner_wrapper
+
+    return outer_wrapper
+
+
 class Daemon(object):
     """Represents a Unix daemon"""
 
