@@ -143,7 +143,13 @@ class Daemon(object):
 
     def _write_pidfile(self):
         """Creates, writes to, and locks the PID file"""
-        self._pid_fd = os.open(self.pidfile, os.O_CREAT | os.O_RDWR | os.O_EXLOCK)
+        flags = os.O_CREAT | os.O_RDWR
+        try:
+            # Some systems don't have os.O_EXLOCK
+            flags = flags | os.O_EXLOCK
+        except AttributeError:
+            pass
+        self._pid_fd = os.open(self.pidfile, flags)
         os.write(self._pid_fd, str(os.getpid()))
 
     def _close_pidfile(self):
