@@ -68,7 +68,7 @@ class Daemon(object):
 
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=022):
+            uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10):
         """Create a new Daemon object"""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
@@ -80,6 +80,7 @@ class Daemon(object):
         self.workdir = workdir
         self.chrootdir = chrootdir
         self.umask = umask
+        self.stop_timeout = stop_timeout
 
         self._pid_fd = None
         self._shutdown_complete = False
@@ -465,11 +466,11 @@ class Daemon(object):
             self._emit_error(str(ex))
             sys.exit(1)
 
-        _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
+        _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=self.stop_timeout)
         if alive:
             # The process didn't terminate for some reason
             self._emit_message('FAILED\n')
-            self._emit_error('Process with PID {pid} did NOT terminate'.format(pid=pid))
+            self._emit_error('Timed out while waiting for process (PID {pid}) to terminate'.format(pid=pid))
             sys.exit(1)
 
         self._emit_message('OK\n')
