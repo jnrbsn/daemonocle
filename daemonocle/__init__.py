@@ -75,9 +75,25 @@ class Daemon(object):
         sys.stdout.flush()
 
     @classmethod
+    def _emit_ok(cls):
+        """Print OK for success"""
+        cls._emit_message('OK\n')
+
+    @classmethod
+    def _emit_failed(cls):
+        """Print FAILED on error"""
+        cls._emit_message('FAILED\n')
+
+    @classmethod
     def _emit_error(cls, message):
         """Helper function for printing an error to STDERR"""
         sys.stderr.write('ERROR: {message}\n'.format(message=message))
+        sys.stderr.flush()
+
+    @classmethod
+    def _emit_warning(cls, message):
+        """Helper function for printing a warning to STDERR"""
+        sys.stderr.write('WARNING: {message}\n'.format(message=message))
         sys.stderr.flush()
 
     def _setup_piddir(self):
@@ -240,11 +256,11 @@ class Daemon(object):
             if status[0] == pid:
                 # The child is already gone for some reason
                 exitcode = status[1] % 255
-                self._emit_message('FAILED\n')
+                self._emit_failed()
                 self._emit_error('Child exited immediately with exit code {code}'.format(code=exitcode))
                 os._exit(exitcode)
             else:
-                self._emit_message('OK\n')
+                self._emit_ok()
                 os._exit(0)
 
         self._reset_file_descriptors()
@@ -374,7 +390,7 @@ class Daemon(object):
                 _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
                 if alive:
                     # The process didn't exit for some reason
-                    self._emit_message('FAILED\n')
+                    self._emit_failed()
                     message = 'Previous process (PID {pid}) did NOT exit during reload'.format(pid=pid)
                     self._emit_error(message)
                     self._shutdown(message, 1)
@@ -383,7 +399,7 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is not None:
             # I don't think this should not be a fatal error
-            self._emit_message('WARNING: {prog} already running with PID {pid}\n'.format(prog=self.prog, pid=pid))
+            self._emit_warning('{prog} already running with PID {pid}'.format(prog=self.prog, pid=pid))
             return
 
         if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and psutil.Process().terminal() is not None:
@@ -399,7 +415,7 @@ class Daemon(object):
         if self.detach:
             self._detach_process()
         else:
-            self._emit_message('OK\n')
+            self._emit_ok()
 
         if self.pidfile is not None:
             self._write_pidfile()
@@ -420,7 +436,7 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is None:
             # I don't think this should not be a fatal error
-            self._emit_message('WARNING: {prog} not running\n'.format(prog=self.prog))
+            self._emit_warning('{prog} is not running'.format(prog=self.prog))
             return
 
         self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
@@ -429,18 +445,18 @@ class Daemon(object):
             # Try to terminate the process
             os.kill(pid, signal.SIGTERM)
         except OSError as ex:
-            self._emit_message('FAILED\n')
+            self._emit_failed()
             self._emit_error(str(ex))
             sys.exit(1)
 
         _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=self.stop_timeout)
         if alive:
             # The process didn't terminate for some reason
-            self._emit_message('FAILED\n')
+            self._emit_failed()
             self._emit_error('Timed out while waiting for process (PID {pid}) to terminate'.format(pid=pid))
             sys.exit(1)
 
-        self._emit_message('OK\n')
+        self._emit_ok()
 
     @expose_action
     def restart(self):
@@ -456,7 +472,7 @@ class Daemon(object):
 
         pid = self._read_pidfile()
         if pid is None:
-            self._emit_message('{prog} not running\n'.format(prog=self.prog))
+            self._emit_message('{prog} is not running\n'.format(prog=self.prog))
             return
 
         proc = psutil.Process(pid)
