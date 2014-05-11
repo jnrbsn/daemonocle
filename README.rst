@@ -341,7 +341,8 @@ worker
 shutdown_callback
     This will get called anytime the daemon is shutting down. It should take a ``message`` and a
     ``code`` argument. The message is a human readable message that explains why the daemon is
-    shutting down. It might useful to log this message. The code is the intended exit code.
+    shutting down. It might useful to log this message. The code is the exit code with which it
+    intends to exit. See `Shutdown Callback`_ for more details.
 
 prog
     The name of your program to use in output. Default: ``sys.argv[0]``
@@ -351,7 +352,8 @@ pidfile
     be able to use all the features you might expect.
 
 detach
-    Whether or not to detach from the terminal and go into the background. Default: ``False``
+    Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
+    for more details. Default: ``False``
 
 uid
     The user ID to switch to when the daemon starts. The default is not to switch users.
