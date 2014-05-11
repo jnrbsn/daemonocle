@@ -324,4 +324,138 @@ have to worry about. Oh, and if your using a file handler for your logger, you c
 Detailed Usage
 --------------
 
-...
+The ``daemonocle.Daemon`` class is the main class for creating a daemon using daemonocle. Here's the
+constructor signature for the class:
+
+.. code:: python
+
+    class daemonocle.Daemon(
+        worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
+        uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10)
+
+And here's an explanation of all the arguments:
+
+worker
+    The function that does all the work for your daemon.
+
+shutdown_callback
+    This will get called anytime the daemon is shutting down. It should take a ``message`` and a
+    ``code`` argument. The message is a human readable message that explains why the daemon is
+    shutting down. It might useful to log this message. The code is the intended exit code.
+
+prog
+    The name of your program to use in output. Default: ``sys.argv[0]``
+
+pidfile
+    The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
+    be able to use all the features you might expect.
+
+detach
+    Whether or not to detach from the terminal and go into the background. Default: ``False``
+
+uid
+    The user ID to switch to when the daemon starts. The default is not to switch users.
+
+gid
+    The group ID to switch to when the daemon starts. The default is not to switch groups.
+
+workdir
+    The path to a directory to change to when the daemon starts. Note that a file system cannot be
+    unmounted if a process has its working directory on that file system. So if you change the
+    default, be careful about what you change it to. Default: ``"/"``
+
+chrootdir
+    The path to a directory to set as the effective root directory when the daemon starts. The
+    default is not to do anything.
+
+umask
+    The file creation mask ("umask") for the process. Default: ``022``
+
+stop_timeout
+    Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
+
+Actions
+~~~~~~~
+
+The default actions are ``start``, ``stop``, ``restart``, and ``status``. You can get a list of
+available actions using the ``daemonocle.Daemon.get_actions()`` method. The recommended way to call
+an action is using the ``daemonocle.Daemon.do_action(action)`` method. The string name of an action
+is the same as the method name except with dashes in place of underscores.
+
+If you want to create your own actions, simply subclass ``daemonocle.Daemon`` and add the
+``@daemonocle.expose_action`` decorator to your action method, and that's it.
+
+Here's an example:
+
+.. code:: python
+
+    import daemonocle
+
+    class MyDaemon(daemonocle.Daemon):
+
+        @daemonocle.expose_action
+        def full_status(self):
+            """Get more detailed status of the daemon."""
+            pass
+
+Then, if you did the basic ``daemon.do_action(sys.argv[1])`` like in all the examples above, you can
+call your action with a command like ``python example.py full-status``.
+
+Integration with click
+~~~~~~~~~~~~~~~~~~~~~~
+
+daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "composable
+command line utility". The integration is in the form of a custom command class
+``daemonocle.cli.DaemonCLI`` that you can use in conjunction with the ``@click.command()`` decorator
+to automatically generate a command line interface with subcommands for all your actions. It also
+automatically daemonizes the decorated function. The decorated function becomes the worker, and the
+actions are automatically mapped from click to daemonocle.
+
+Here's an example:
+
+.. code:: python
+
+    import time
+
+    import click
+    from daemonocle.cli import DaemonCLI
+
+    @click.command(cls=DaemonCLI, daemon_params={'pidfile': '/var/run/example.pid'})
+    def main():
+        """This is my awesome daemon. It pretends to do work in the background."""
+        while True:
+            time.sleep(10)
+
+    if __name__ == '__main__':
+        main()
+
+Running this example would look something like this::
+
+    user@host:~$ python example.py --help
+    Usage: example.py [<options>] <command> [<args>]...
+
+      This is my awesome daemon. It pretends to do work in the background.
+
+    Options:
+      --help  Show this message and exit.
+
+    Commands:
+      start    Start the daemon.
+      stop     Stop the daemon.
+      restart  Stop then start the daemon.
+    user@host:~$ python example.py start --help
+    Usage: example.py start [<options>]
+
+      Start the daemon.
+
+    Options:
+      --debug  Do NOT detach and run in the background.
+      --help   Show this message and exit.
+
+This integration is entirely optional. daemonocle doesn't enforce any sort of argument parsing. You
+can use argparse, optparse, or just plain ``sys.argv`` if you want.
+
+Bugs, Requests, Questions, etc.
+-------------------------------
+
+Please create an `issue on GitHub <https://github.com/jnrbsn/daemonocle/issues>`_.
