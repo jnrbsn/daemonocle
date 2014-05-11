@@ -20,23 +20,23 @@ import psutil
 
 
 class DaemonError(Exception):
-    """Custom exception class"""
+    """An exception class that daemonocle can raise for errors."""
     pass
 
 
 def expose_action(func):
-    """Decorator for making a method as being an action"""
+    """This decorator makes a method into an action."""
     func.__daemonocle_exposed__ = True
     return func
 
 
 class Daemon(object):
-    """Represents a Unix daemon"""
+    """This is the main class for creating a daemon using daemonocle."""
 
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
             uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10):
-        """Create a new Daemon object"""
+        """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
         self.prog = prog if prog is not None else os.path.basename(sys.argv[0])
@@ -70,34 +70,34 @@ class Daemon(object):
 
     @classmethod
     def _emit_message(cls, message):
-        """Helper function for printing a raw message to STDOUT"""
+        """Print a message to STDOUT."""
         sys.stdout.write(message)
         sys.stdout.flush()
 
     @classmethod
     def _emit_ok(cls):
-        """Print OK for success"""
+        """Print OK for success."""
         cls._emit_message('OK\n')
 
     @classmethod
     def _emit_failed(cls):
-        """Print FAILED on error"""
+        """Print FAILED on error."""
         cls._emit_message('FAILED\n')
 
     @classmethod
     def _emit_error(cls, message):
-        """Helper function for printing an error to STDERR"""
+        """Print an error message to STDERR."""
         sys.stderr.write('ERROR: {message}\n'.format(message=message))
         sys.stderr.flush()
 
     @classmethod
     def _emit_warning(cls, message):
-        """Helper function for printing a warning to STDERR"""
+        """Print an warning message to STDERR."""
         sys.stderr.write('WARNING: {message}\n'.format(message=message))
         sys.stderr.flush()
 
     def _setup_piddir(self):
-        """Creates the directory for the PID file if necessary"""
+        """Create the directory for the PID file if necessary."""
         if self.pidfile is None:
             return
         piddir = os.path.dirname(self.pidfile)
@@ -107,7 +107,7 @@ class Daemon(object):
             os.chown(piddir, self.uid, self.gid)
 
     def _read_pidfile(self):
-        """Reads the PID file and checks to make sure the corresponding process is running"""
+        """Read the PID file and check to make sure the corresponding process is running."""
         if self.pidfile is None:
             return None
 
@@ -126,7 +126,7 @@ class Daemon(object):
             return None
 
     def _write_pidfile(self):
-        """Creates, writes to, and locks the PID file"""
+        """Create, write to, and lock the PID file."""
         flags = os.O_CREAT | os.O_RDWR
         try:
             # Some systems don't have os.O_EXLOCK
@@ -137,14 +137,14 @@ class Daemon(object):
         os.write(self._pid_fd, str(os.getpid()))
 
     def _close_pidfile(self):
-        """Closes and removes the PID file"""
+        """Closes and removes the PID file."""
         if self._pid_fd is not None:
             os.close(self._pid_fd)
         os.remove(self.pidfile)
 
     @classmethod
     def _prevent_core_dump(cls):
-        """Prevent the process from generating a core dump"""
+        """Prevent the process from generating a core dump."""
         try:
             # Try to get the current limit
             _ = resource.getrlimit(resource.RLIMIT_CORE)
@@ -156,7 +156,7 @@ class Daemon(object):
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
     def _setup_environment(self):
-        """Sets up the environment for the daemon"""
+        """Setup the environment for the daemon."""
         # Save the original working directory so that reload can launch the new process with the
         # same arguments as the original process
         self._orig_workdir = os.getcwd()
@@ -196,7 +196,7 @@ class Daemon(object):
             raise DaemonError('Unable to setuid or setgid ({error})'.format(error=str(ex)))
 
     def _reset_file_descriptors(self):
-        """Close open file descriptors and redirect standard streams"""
+        """Close open file descriptors and redirect standard streams."""
         for fd in self._open_fds:
             try:
                 os.close(fd)
@@ -212,7 +212,7 @@ class Daemon(object):
 
     @classmethod
     def _is_detach_necessary(cls):
-        """Checks if detaching the process is even necessary"""
+        """Check if detaching the process is even necessary."""
         if os.getppid() == 1:
             # Process was started by init
             return False
@@ -233,7 +233,7 @@ class Daemon(object):
         return True
 
     def _detach_process(self):
-        """Detaches the process via the standard Stevens method with some extra magic"""
+        """Detach the process via the standard Stevens method with some extra magic."""
         # First fork to return control to the shell
         pid = os.fork()
         if pid > 0:
@@ -267,7 +267,7 @@ class Daemon(object):
 
     @classmethod
     def _orphan_this_process(cls, wait_for_parent=False):
-        """Orphans the current process by forking and then waiting for the parent to exit"""
+        """Orphan the current process by forking and then waiting for the parent to exit."""
         # The current PID will be the PPID of the forked child
         ppid = os.getpid()
 
@@ -287,7 +287,7 @@ class Daemon(object):
 
     @classmethod
     def _fork_and_supervise_child(cls):
-        """Forks a child and then watches the process group until there are no processes in it"""
+        """Fork a child and then watch the process group until there are no processes in it."""
         pid = os.fork()
         if pid == 0:
             # Fork again but orphan the child this time so we'll have the original parent and the
@@ -325,7 +325,7 @@ class Daemon(object):
                 continue
 
     def _shutdown(self, message=None, code=0):
-        """Shutdown and cleanup everything"""
+        """Shutdown and cleanup everything."""
         if self._shutdown_complete:
             # Make sure we don't accidentally re-run all the cleanup stuff
             sys.exit(code)
@@ -341,7 +341,7 @@ class Daemon(object):
         sys.exit(code)
 
     def _handle_terminate(self, signal_number, _):
-        """Handle a signal to terminate"""
+        """Handle a signal to terminate."""
         signal_names = {
             signal.SIGINT: 'SIGINT',
             signal.SIGQUIT: 'SIGQUIT',
@@ -351,7 +351,7 @@ class Daemon(object):
         self._shutdown(message, code=128+signal_number)
 
     def _run(self):
-        """Runs the worker function with a bunch of custom exception handling"""
+        """Run the worker function with a bunch of custom exception handling."""
         try:
             # Run the worker
             self.worker()
@@ -375,7 +375,7 @@ class Daemon(object):
 
     @expose_action
     def start(self):
-        """Starts the daemon"""
+        """Start the daemon."""
         if self.worker is None:
             raise DaemonError('No worker is defined for daemon')
 
@@ -429,7 +429,7 @@ class Daemon(object):
 
     @expose_action
     def stop(self):
-        """Stops the daemon"""
+        """Stop the daemon."""
         if self.pidfile is None:
             raise DaemonError('Cannot stop daemon without PID file')
 
@@ -460,13 +460,13 @@ class Daemon(object):
 
     @expose_action
     def restart(self):
-        """Stops then starts"""
+        """Stop then start the daemon."""
         self.stop()
         self.start()
 
     @expose_action
     def status(self):
-        """Prints the status of the daemon"""
+        """Get the status of the daemon."""
         if self.pidfile is None:
             raise DaemonError('Cannot get status of daemon without PID file')
 
@@ -514,7 +514,7 @@ class Daemon(object):
 
     @classmethod
     def get_actions(cls):
-        """Returns a list of exposed actions that are callable via do_action()"""
+        """Return a list of exposed actions that are callable via ``do_action()``."""
         # Make sure these are always at the beginning of the list
         actions = ['start', 'stop', 'restart', 'status']
         # Iterate over the objects attributes checking for exposed actions
@@ -530,7 +530,7 @@ class Daemon(object):
         return actions
 
     def get_action(self, action):
-        """Gets a callable action"""
+        """Get a callable action."""
         func_name = action.replace('-', '_')
         if not hasattr(self, func_name):
             # Function doesn't exist
@@ -544,12 +544,12 @@ class Daemon(object):
         return func
 
     def do_action(self, action):
-        """Used for automatically calling a user provided action"""
+        """Call an action by name."""
         func = self.get_action(action)
         func()
 
     def reload(self):
-        """Allows the daemon to restart itself"""
+        """Make the daemon reload itself."""
         pid = self._read_pidfile()
         if pid is None or pid != os.getpid():
             raise DaemonError('Daemon.reload() should only be called by the daemon process itself')
