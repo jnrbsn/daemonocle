@@ -26,7 +26,7 @@ class DaemonError(Exception):
 
 def expose_action(func):
     """Decorator for making a method as being an action"""
-    func.exposed_action = True
+    func.__daemonocle_exposed__ = True
     return func
 
 
@@ -512,14 +512,15 @@ class Daemon(object):
         template = '{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n'
         self._emit_message(template.format(**data))
 
-    def get_actions(self):
+    @classmethod
+    def get_actions(cls):
         """Returns a list of exposed actions that are callable via do_action()"""
         # Make sure these are always at the beginning of the list
         actions = ['start', 'stop', 'restart', 'status']
         # Iterate over the objects attributes checking for exposed actions
-        for func_name in dir(self):
-            func = getattr(self, func_name)
-            if not hasattr(func, '__call__') or getattr(func, 'exposed_action', False) is not True:
+        for func_name in dir(cls):
+            func = getattr(cls, func_name)
+            if not hasattr(func, '__call__') or getattr(func, '__daemonocle_exposed__', False) is not True:
                 # Not a function or not exposed
                 continue
             action = func_name.replace('_', '-')
@@ -528,19 +529,23 @@ class Daemon(object):
 
         return actions
 
-    def do_action(self, action):
-        """Used for automatically calling a user provided action"""
+    def get_action(self, action):
+        """Gets a callable action"""
         func_name = action.replace('-', '_')
         if not hasattr(self, func_name):
             # Function doesn't exist
             raise DaemonError('Invalid action "{action}"'.format(action=action))
 
         func = getattr(self, func_name)
-        if not hasattr(func, '__call__') or getattr(func, 'exposed_action', False) is not True:
+        if not hasattr(func, '__call__') or getattr(func, '__daemonocle_exposed__', False) is not True:
             # Not a function or not exposed
             raise DaemonError('Invalid action "{action}"'.format(action=action))
 
-        # Call the function
+        return func
+
+    def do_action(self, action):
+        """Used for automatically calling a user provided action"""
+        func = self.get_action(action)
         func()
 
     def reload(self):
