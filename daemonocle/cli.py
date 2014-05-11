@@ -33,6 +33,8 @@ class DaemonCLI(click.MultiCommand):
 
     def get_command(self, ctx, name):
         """Get a callable command object."""
+        if name not in self.daemon_class.get_actions():
+            return None
 
         daemon = self.daemon_class(**self.daemon_params)
 
