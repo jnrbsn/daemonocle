@@ -23,7 +23,7 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
     ],
-    keywords='daemon daemonize fork unix',
+    keywords='daemon daemonize fork unix cli',
     packages=['daemonocle'],
     install_requires=[
         'click==0.6',
