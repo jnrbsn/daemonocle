@@ -335,45 +335,45 @@ constructor signature for the class:
 
 And here's an explanation of all the arguments:
 
-worker
+**worker**
     The function that does all the work for your daemon.
 
-shutdown_callback
+**shutdown_callback**
     This will get called anytime the daemon is shutting down. It should take a ``message`` and a
     ``code`` argument. The message is a human readable message that explains why the daemon is
     shutting down. It might useful to log this message. The code is the exit code with which it
     intends to exit. See `Shutdown Callback`_ for more details.
 
-prog
+**prog**
     The name of your program to use in output. Default: ``sys.argv[0]``
 
-pidfile
+**pidfile**
     The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
     be able to use all the features you might expect.
 
-detach
+**detach**
     Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
     for more details. Default: ``False``
 
-uid
+**uid**
     The user ID to switch to when the daemon starts. The default is not to switch users.
 
-gid
+**gid**
     The group ID to switch to when the daemon starts. The default is not to switch groups.
 
-workdir
+**workdir**
     The path to a directory to change to when the daemon starts. Note that a file system cannot be
     unmounted if a process has its working directory on that file system. So if you change the
     default, be careful about what you change it to. Default: ``"/"``
 
-chrootdir
+**chrootdir**
     The path to a directory to set as the effective root directory when the daemon starts. The
     default is not to do anything.
 
-umask
+**umask**
     The file creation mask ("umask") for the process. Default: ``022``
 
-stop_timeout
+**stop_timeout**
     Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
 
 Actions
