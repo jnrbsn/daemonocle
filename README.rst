@@ -456,6 +456,11 @@ Running this example would look something like this::
       --debug  Do NOT detach and run in the background.
       --help   Show this message and exit.
 
+The ``daemonocle.cli.DaemonCLI`` class also accepts a ``daemon_class`` argument that can be a
+subclass of ``daemonocle.Daemon``. It will use your custom class, automatically create subcommands
+for any custom actions you've defined, and use the docstrings of the action methods as the help text
+just like click usually does.
+
 This integration is entirely optional. daemonocle doesn't enforce any sort of argument parsing. You
 can use argparse, optparse, or just plain ``sys.argv`` if you want.
 
