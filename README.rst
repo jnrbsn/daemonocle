@@ -49,7 +49,7 @@ Here's a **really really** basic example:
         )
         daemon.do_action(sys.argv[1])
 
-Here's another **really** basic example:
+And here's the same example with logging and a `Shutdown Callback`_:
 
 .. code:: python
 
@@ -318,8 +318,8 @@ Here's another **GOOD** way to do it:
     daemon.do_action(sys.argv[1])
 
 This is **only** a problem if your class leaves files open upon instantiation. Otherwise, you don't
-have to worry about. Oh, and if your using a file handler for your logger, you can probably use the
-``delay=True`` option to avoid opening the file before it's needed.
+have to worry about it. Oh, and if your using a file handler for your logger, you can probably use
+the ``delay=True`` option to avoid opening the file before it's needed.
 
 Detailed Usage
 --------------
@@ -333,7 +333,7 @@ constructor signature for the class:
         worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
         uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10)
 
-And here's an explanation of all the arguments:
+And here are descriptions of all the arguments:
 
 **worker**
     The function that does all the work for your daemon.
@@ -345,15 +345,16 @@ And here's an explanation of all the arguments:
     intends to exit. See `Shutdown Callback`_ for more details.
 
 **prog**
-    The name of your program to use in output. Default: ``sys.argv[0]``
+    The name of your program to use in output messages. Default: ``os.path.basename(sys.argv[0])``
 
 **pidfile**
     The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
-    be able to use all the features you might expect.
+    be able to use all the features you might expect. Make sure the user your daemon is running as
+    has permission to write to the directory this file is in.
 
 **detach**
     Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
-    for more details. Default: ``False``
+    for more details. Default: ``True``
 
 **uid**
     The user ID to switch to when the daemon starts. The default is not to switch users.
@@ -380,7 +381,7 @@ Actions
 ~~~~~~~
 
 The default actions are ``start``, ``stop``, ``restart``, and ``status``. You can get a list of
-available actions using the ``daemonocle.Daemon.get_actions()`` method. The recommended way to call
+available actions using the ``daemonocle.Daemon.list_actions()`` method. The recommended way to call
 an action is using the ``daemonocle.Daemon.do_action(action)`` method. The string name of an action
 is the same as the method name except with dashes in place of underscores.
 
@@ -445,6 +446,7 @@ Running this example would look something like this::
       start    Start the daemon.
       stop     Stop the daemon.
       restart  Stop then start the daemon.
+      status   Get the status of the daemon.
     user@host:~$ python example.py start --help
     Usage: example.py start [<options>]
 
