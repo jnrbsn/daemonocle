@@ -513,8 +513,8 @@ class Daemon(object):
         self._emit_message(template.format(**data))
 
     @classmethod
-    def get_actions(cls):
-        """Return a list of exposed actions that are callable via ``do_action()``."""
+    def list_actions(cls):
+        """Get a list of exposed actions that are callable via ``do_action()``."""
         # Make sure these are always at the beginning of the list
         actions = ['start', 'stop', 'restart', 'status']
         # Iterate over the objects attributes checking for exposed actions

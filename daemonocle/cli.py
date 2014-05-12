@@ -29,11 +29,11 @@ class DaemonCLI(click.MultiCommand):
 
     def list_commands(self, ctx):
         """Get a list of subcommands."""
-        return self.daemon_class.get_actions()
+        return self.daemon_class.list_actions()
 
     def get_command(self, ctx, name):
         """Get a callable command object."""
-        if name not in self.daemon_class.get_actions():
+        if name not in self.daemon_class.list_actions():
             return None
 
         daemon = self.daemon_class(**self.daemon_params)
