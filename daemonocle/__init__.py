@@ -298,16 +298,22 @@ class Daemon(object):
         # child doesn't become a zombie
         os.waitpid(pid, 0)
 
-        # Get the current PID and GPID
-        pid = os.getpid()
+        # Generate a list of PIDs to exclude when checking for processes in the group
+        # Exclude all ancestors that are in this process group
         pgid = os.getpgrp()
+        exclude_pids = set([0, os.getpid()])
+        proc = psutil.Process()
+        while os.getpgid(proc.pid) == pgid and proc.ppid() > 1:
+            exclude_pids.add(proc.pid)
+            proc = psutil.Process(proc.ppid())
+
         while True:
             try:
                 # Look for other processes in this process group
                 group_procs = []
                 for proc in psutil.process_iter():
                     try:
-                        if os.getpgid(proc.pid) == pgid and proc.pid not in (0, pid):
+                        if os.getpgid(proc.pid) == pgid and proc.pid not in exclude_pids:
                             # We found a process in this process group
                             group_procs.append(proc)
                     except (psutil.NoSuchProcess, OSError):
