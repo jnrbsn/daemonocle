@@ -2,7 +2,7 @@
 
 import click
 
-import daemonocle
+from .daemon import Daemon
 
 
 class DaemonCLI(click.MultiCommand):
@@ -14,7 +14,7 @@ class DaemonCLI(click.MultiCommand):
     def __init__(
             self, callback=None, options_metavar='[<options>]',
             subcommand_metavar='<command> [<args>]...',
-            daemon_params=None, daemon_class=daemonocle.Daemon,
+            daemon_params=None, daemon_class=Daemon,
             **attrs):
         # Pass None for the callback so that the main command doesn't get called before the
         # subcommand. That would mess things up since subcommands just run the main main command.
