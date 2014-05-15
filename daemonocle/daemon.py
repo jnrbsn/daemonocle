@@ -251,8 +251,8 @@ class Daemon(object):
                 # The child is already gone for some reason
                 exitcode = status[1] % 255
                 self._emit_failed()
-                self._emit_error(
-                    'Child exited immediately with non-zero exit code {code}'.format(code=exitcode))
+                self._emit_error('Child exited immediately with non-zero exit '
+                                 'code {code}'.format(code=exitcode))
                 os._exit(exitcode)
             else:
                 self._emit_ok()
@@ -467,8 +467,8 @@ class Daemon(object):
         if alive:
             # The process didn't terminate for some reason
             self._emit_failed()
-            self._emit_error(
-                'Timed out while waiting for process (PID {pid}) to terminate'.format(pid=pid))
+            self._emit_error('Timed out while waiting for process (PID {pid}) '
+                             'to terminate'.format(pid=pid))
             sys.exit(1)
 
         self._emit_ok()
