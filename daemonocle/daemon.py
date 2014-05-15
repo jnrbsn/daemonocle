@@ -43,8 +43,9 @@ class Daemon(object):
         self._shutdown_complete = False
         self._orig_workdir = '/'
 
-        # Create a list of all open file descriptors so that when we close them later, we can skip
-        # ones that were opened after the Daemon object was created
+        # Create a list of all open file descriptors so that when we
+        # close them later, we can skip ones that were opened after the
+        # Daemon object was created
         max_fds = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
         if max_fds == resource.RLIM_INFINITY:
             # If the limit is infinity, use a more reasonable limit
@@ -97,7 +98,7 @@ class Daemon(object):
             os.chown(piddir, self.uid, self.gid)
 
     def _read_pidfile(self):
-        """Read the PID file and check to make sure the corresponding process is running."""
+        """Read the PID file and check to make sure it's not stale."""
         if self.pidfile is None:
             return None
 
@@ -147,8 +148,8 @@ class Daemon(object):
 
     def _setup_environment(self):
         """Setup the environment for the daemon."""
-        # Save the original working directory so that reload can launch the new process with the
-        # same arguments as the original process
+        # Save the original working directory so that reload can launch
+        # the new process with the same arguments as the original
         self._orig_workdir = os.getcwd()
 
         if self.chrootdir is not None:
@@ -207,7 +208,8 @@ class Daemon(object):
             # Process was started by init
             return False
 
-        # The code below checks if STDIN is a socket, which means it was started by a super-server
+        # The code below checks if STDIN is a socket, which means it was
+        # started by a super-server
         sock = socket.fromfd(sys.stdin.fileno(), socket.AF_INET, socket.SOCK_RAW)
         try:
             # This will raise a socket.error if it's not a socket
@@ -223,31 +225,34 @@ class Daemon(object):
         return True
 
     def _detach_process(self):
-        """Detach the process via the standard Stevens method with some extra magic."""
+        """Detach the process via the standard double-fork method with
+        some extra magic."""
         # First fork to return control to the shell
         pid = os.fork()
         if pid > 0:
-            # Wait for the first child, because it's going to wait and check to make sure the second
-            # child is actually running before exiting
+            # Wait for the first child, because it's going to wait and
+            # check to make sure the second child is actually running
+            # before exiting
             os.waitpid(pid, 0)
             os._exit(0)
 
         # Become a process group and session group leader
         os.setsid()
 
-        # Fork again so the session group leader can exit and to ensure we can never regain a
-        # controlling terminal
+        # Fork again so the session group leader can exit and to ensure
+        # we can never regain a controlling terminal
         pid = os.fork()
         if pid > 0:
             time.sleep(1)
-            # After waiting one second, check to make sure the second child
-            # hasn't become a zombie already
+            # After waiting one second, check to make sure the second
+            # child hasn't become a zombie already
             status = os.waitpid(pid, os.WNOHANG)
             if status[0] == pid:
                 # The child is already gone for some reason
                 exitcode = status[1] % 255
                 self._emit_failed()
-                self._emit_error('Child exited immediately with exit code {code}'.format(code=exitcode))
+                self._emit_error(
+                    'Child exited immediately with non-zero exit code {code}'.format(code=exitcode))
                 os._exit(exitcode)
             else:
                 self._emit_ok()
@@ -257,7 +262,8 @@ class Daemon(object):
 
     @classmethod
     def _orphan_this_process(cls, wait_for_parent=False):
-        """Orphan the current process by forking and then waiting for the parent to exit."""
+        """Orphan the current process by forking and then waiting for
+        the parent to exit."""
         # The current PID will be the PPID of the forked child
         ppid = os.getpid()
 
@@ -277,19 +283,21 @@ class Daemon(object):
 
     @classmethod
     def _fork_and_supervise_child(cls):
-        """Fork a child and then watch the process group until there are no processes in it."""
+        """Fork a child and then watch the process group until there are
+        no processes in it."""
         pid = os.fork()
         if pid == 0:
-            # Fork again but orphan the child this time so we'll have the original parent and the
-            # second child which is orphaned so we don't have to worry about it becoming a zombie
+            # Fork again but orphan the child this time so we'll have
+            # the original parent and the second child which is orphaned
+            # so we don't have to worry about it becoming a zombie
             cls._orphan_this_process()
             return
-        # Since this process is not going to exit, we need to call os.waitpid() so that the first
-        # child doesn't become a zombie
+        # Since this process is not going to exit, we need to call
+        # os.waitpid() so that the first child doesn't become a zombie
         os.waitpid(pid, 0)
 
-        # Generate a list of PIDs to exclude when checking for processes in the group
-        # Exclude all ancestors that are in this process group
+        # Generate a list of PIDs to exclude when checking for processes
+        # in the group (exclude all ancestors that are in the group)
         pgid = os.getpgrp()
         exclude_pids = set([0, os.getpid()])
         proc = psutil.Process()
@@ -312,22 +320,25 @@ class Daemon(object):
                 if group_procs:
                     psutil.wait_procs(group_procs, timeout=1)
                 else:
-                    # No processes were found in this process group so we can exit
+                    # No processes were found in this process group
+                    # so we can exit
                     cls._emit_message('All children are gone. Parent is exiting...\n')
                     sys.exit(0)
             except KeyboardInterrupt:
-                # Don't exit immediatedly on Ctrl-C, because we want to wait for the child processes to finish
+                # Don't exit immediatedly on Ctrl-C, because we want to
+                # wait for the child processes to finish
                 cls._emit_message('\n')
                 continue
 
     def _shutdown(self, message=None, code=0):
         """Shutdown and cleanup everything."""
         if self._shutdown_complete:
-            # Make sure we don't accidentally re-run all the cleanup stuff
+            # Make sure we don't accidentally re-run the all cleanup
             sys.exit(code)
 
         if self.shutdown_callback is not None:
-            # Call the shutdown callback with a message suitable for logging and the exit code
+            # Call the shutdown callback with a message suitable for
+            # logging and the exit code
             self.shutdown_callback(message, code)
 
         if self.pidfile is not None:
@@ -343,7 +354,8 @@ class Daemon(object):
             signal.SIGQUIT: 'SIGQUIT',
             signal.SIGTERM: 'SIGTERM',
         }
-        message = 'Terminated by {name} ({number})'.format(name=signal_names[signal_number], number=signal_number)
+        message = 'Terminated by {name} ({number})'.format(
+            name=signal_names[signal_number], number=signal_number)
         self._shutdown(message, code=128+signal_number)
 
     def _run(self):
@@ -362,7 +374,8 @@ class Daemon(object):
                 self._shutdown('Exiting with message: ' + str(ex.code), 1)
         except Exception as ex:
             if self.detach:
-                self._shutdown('Dying due to unhandled ' + ex.__class__.__name__ + ': ' + str(ex), 127)
+                self._shutdown('Dying due to unhandled {cls}: {msg}'.format(
+                    cls=ex.__class__.__name__, msg=str(ex)), 127)
             else:
                 # We're not detached so just raise the exception
                 raise
@@ -376,7 +389,8 @@ class Daemon(object):
             raise DaemonError('No worker is defined for daemon')
 
         if os.environ.get('DAEMONOCLE_RELOAD'):
-            # If this is actually a reload, we need to wait for the existing daemon to exit first
+            # If this is actually a reload, we need to wait for the
+            # existing daemon to exit first
             self._emit_message('Reloading {prog} ... '.format(prog=self.prog))
             # Orhpan this process so the parent can exit
             self._orphan_this_process(wait_for_parent=True)
@@ -387,7 +401,8 @@ class Daemon(object):
                 if alive:
                     # The process didn't exit for some reason
                     self._emit_failed()
-                    message = 'Previous process (PID {pid}) did NOT exit during reload'.format(pid=pid)
+                    message = ('Previous process (PID {pid}) did NOT '
+                               'exit during reload').format(pid=pid)
                     self._emit_error(message)
                     self._shutdown(message, 1)
 
@@ -395,11 +410,14 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is not None:
             # I don't think this should not be a fatal error
-            self._emit_warning('{prog} already running with PID {pid}'.format(prog=self.prog, pid=pid))
+            self._emit_warning('{prog} already running with PID {pid}'.format(
+                prog=self.prog, pid=pid))
             return
 
-        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and psutil.Process().terminal() is not None:
-            # This keeps the original parent process open so that we maintain control of the tty
+        if (not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and
+                psutil.Process().terminal() is not None):
+            # This keeps the original parent process open so that we
+            # maintain control of the tty
             self._fork_and_supervise_child()
 
         if not os.environ.get('DAEMONOCLE_RELOAD'):
@@ -449,7 +467,8 @@ class Daemon(object):
         if alive:
             # The process didn't terminate for some reason
             self._emit_failed()
-            self._emit_error('Timed out while waiting for process (PID {pid}) to terminate'.format(pid=pid))
+            self._emit_error(
+                'Timed out while waiting for process (PID {pid}) to terminate'.format(pid=pid))
             sys.exit(1)
 
         self._emit_ok()
@@ -482,7 +501,8 @@ class Daemon(object):
             'memory': 0.0,
         }
 
-        # Add up all the CPU and memory usage of all the processes in the process group
+        # Add up all the CPU and memory usage of all the
+        # processes in the process group
         pgid = os.getpgid(pid)
         for gproc in psutil.process_iter():
             try:
@@ -492,7 +512,8 @@ class Daemon(object):
             except (psutil.Error, OSError):
                 continue
 
-        # Calculate the uptime and format it in a human readable but also parsable format
+        # Calculate the uptime and format it in a human-readable but
+        # also machine-parsable format
         try:
             uptime_minutes = int(round((time.time() - proc.create_time()) / 60))
             uptime_hours, uptime_minutes = divmod(uptime_minutes, 60)
@@ -505,18 +526,22 @@ class Daemon(object):
         except psutil.Error:
             pass
 
-        template = '{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n'
+        template = ('{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, '
+                    '%cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
         self._emit_message(template.format(**data))
 
     @classmethod
     def list_actions(cls):
-        """Get a list of exposed actions that are callable via ``do_action()``."""
+        """Get a list of exposed actions that are callable via the
+        ``do_action()`` method."""
         # Make sure these are always at the beginning of the list
         actions = ['start', 'stop', 'restart', 'status']
-        # Iterate over the objects attributes checking for exposed actions
+        # Iterate over the instance attributes checking for actions that
+        # have been exposed
         for func_name in dir(cls):
             func = getattr(cls, func_name)
-            if not hasattr(func, '__call__') or getattr(func, '__daemonocle_exposed__', False) is not True:
+            if (not hasattr(func, '__call__') or
+                    getattr(func, '__daemonocle_exposed__', False) is not True):
                 # Not a function or not exposed
                 continue
             action = func_name.replace('_', '-')
@@ -533,7 +558,8 @@ class Daemon(object):
             raise DaemonError('Invalid action "{action}"'.format(action=action))
 
         func = getattr(self, func_name)
-        if not hasattr(func, '__call__') or getattr(func, '__daemonocle_exposed__', False) is not True:
+        if (not hasattr(func, '__call__') or
+                getattr(func, '__daemonocle_exposed__', False) is not True):
             # Not a function or not exposed
             raise DaemonError('Invalid action "{action}"'.format(action=action))
 

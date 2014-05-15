@@ -6,9 +6,10 @@ from .daemon import Daemon
 
 
 class DaemonCLI(click.MultiCommand):
-    """This is a custom Command class for `click <http://click.pocoo.org/>`_.
+    """A Command class for `click <http://click.pocoo.org/>`_.
 
-    This class automatically adds start, stop, restart, and status subcommands for daemons.
+    This class automatically adds start, stop, restart, and status
+    subcommands for daemons.
     """
 
     def __init__(
@@ -16,8 +17,9 @@ class DaemonCLI(click.MultiCommand):
             subcommand_metavar='<command> [<args>]...',
             daemon_params=None, daemon_class=Daemon,
             **attrs):
-        # Pass None for the callback so that the main command doesn't get called before the
-        # subcommand. That would mess things up since subcommands just run the main main command.
+        # Pass None for the callback so that the main command doesn't
+        # get called before the subcommand. That would mess things up
+        # since subcommands just run the main main command.
         super(DaemonCLI, self).__init__(
             callback=None, options_metavar=options_metavar,
             subcommand_metavar=subcommand_metavar, **attrs
@@ -45,7 +47,8 @@ class DaemonCLI(click.MultiCommand):
 
             daemon.do_action(name)
 
-        # Override the docstring for the function so that it shows up correctly in the help output
+        # Override the docstring for the function so that it shows up
+        # correctly in the help output
         subcommand.__doc__ = daemon.get_action(name).__doc__
 
         if name == 'start':
