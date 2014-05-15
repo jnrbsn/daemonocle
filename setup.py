@@ -1,13 +1,11 @@
 from setuptools import setup
 
-from daemonocle import __version__
-
 with open('README.rst') as fp:
     long_description = fp.read().split('\n\n-----\n\n', 1)[1].lstrip()
 
 setup(
     name='daemonocle',
-    version=__version__,
+    version='0.3',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
