@@ -519,10 +519,10 @@ class Daemon(object):
             uptime_hours, uptime_minutes = divmod(uptime_minutes, 60)
             data['uptime'] = str(uptime_minutes) + 'm'
             if uptime_hours:
+                uptime_days, uptime_hours = divmod(uptime_hours, 24)
                 data['uptime'] = str(uptime_hours) + 'h ' + data['uptime']
-            uptime_days, uptime_hours = divmod(uptime_hours, 24)
-            if uptime_days:
-                data['uptime'] = str(uptime_days) + 'd ' + data['uptime']
+                if uptime_days:
+                    data['uptime'] = str(uptime_days) + 'd ' + data['uptime']
         except psutil.Error:
             pass
 
