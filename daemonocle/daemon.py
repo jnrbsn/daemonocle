@@ -25,7 +25,7 @@ class Daemon(object):
 
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10):
+            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
@@ -94,7 +94,7 @@ class Daemon(object):
         piddir = os.path.dirname(self.pidfile)
         if not os.path.isdir(piddir):
             # Create the directory with sensible mode and ownership
-            os.makedirs(piddir, 0755)
+            os.makedirs(piddir, 0o755)
             os.chown(piddir, self.uid, self.gid)
 
     def _read_pidfile(self):
