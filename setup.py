@@ -5,7 +5,7 @@ with open('README.rst') as fp:
 
 setup(
     name='daemonocle',
-    version='0.5',
+    version='0.6',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
@@ -25,7 +25,7 @@ setup(
     keywords='daemon daemonize fork unix cli',
     packages=['daemonocle'],
     install_requires=[
-        'click==0.7',
+        'click==2.0',
         'psutil==2.1.1',
     ],
 )
