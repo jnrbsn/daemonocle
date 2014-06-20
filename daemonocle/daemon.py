@@ -107,9 +107,13 @@ class Daemon(object):
 
         # Read the PID file
         with open(self.pidfile, 'r') as fp:
-            pid = int(fp.read())
+            try :
+                pid = int(fp.read())
+            except ValueError:
+                self._emit_warning('Empty or broken pidfile {pidfile}; removing'.format(pidfile=self.pidfile))
+                pid = None
 
-        if psutil.pid_exists(pid):
+        if pid is not None and psutil.pid_exists(pid):
             return pid
         else:
             # Remove the stale PID file
@@ -125,7 +129,7 @@ class Daemon(object):
         except AttributeError:
             pass
         self._pid_fd = os.open(self.pidfile, flags)
-        os.write(self._pid_fd, str(os.getpid()))
+        os.write(self._pid_fd, str(os.getpid()).encode('utf-8'))
 
     def _close_pidfile(self):
         """Closes and removes the PID file."""
