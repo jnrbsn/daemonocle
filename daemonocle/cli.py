@@ -19,7 +19,7 @@ class DaemonCLI(click.MultiCommand):
             **attrs):
         # Pass None for the callback so that the main command doesn't
         # get called before the subcommand. That would mess things up
-        # since subcommands just run the main main command.
+        # since subcommands just run the main command.
         super(DaemonCLI, self).__init__(
             callback=None, options_metavar=options_metavar,
             subcommand_metavar=subcommand_metavar, **attrs
