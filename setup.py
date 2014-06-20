@@ -25,7 +25,7 @@ setup(
     keywords='daemon daemonize fork unix cli',
     packages=['daemonocle'],
     install_requires=[
-        'click==2.0',
+        'click==2.1',
         'psutil==2.1.1',
     ],
 )
