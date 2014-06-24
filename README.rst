@@ -285,41 +285,14 @@ File Descriptor Handling
 One of the things that daemons typically do is close all open file descriptors and establish new
 ones for ``STDIN``, ``STDOUT``, ``STDERR`` that just point to ``/dev/null``. This is fine most of
 the time, but if your worker is an instance method of a class that opens files in its ``__init__()``
-method, then you'll run into problems if you're not careful. **Fortunately, daemonocle only closes
-file descriptors that were open when the** ``daemonocle.Daemon`` **class was instantiated.** So if
-you open all your files after that, you're good.
+method, then you'll run into problems if you're not careful. This is also a problem if you're
+importing a module that leaves open files behind. For example, importing the
+`random <https://docs.python.org/3/library/random.html>`_ standard library module in Python 3
+results in an open file descriptor for ``/dev/urandom``.
 
-Here's an example of the **BAD** way to do it:
-
-.. code:: python
-
-    app = YourApp()  # <--- leaves files open
-    daemon = daemonocle.Daemon(worker=app.run)
-    daemon.do_action(sys.argv[1])
-
-Here's an example of a **GOOD** way to do it:
-
-.. code:: python
-
-    daemon = daemonocle.Daemon()
-    app = YourApp()
-    daemon.worker = app.run
-    daemon.do_action(sys.argv[1])
-
-Here's another **GOOD** way to do it:
-
-.. code:: python
-
-    def main():
-        app = YourApp()
-        app.run()
-
-    daemon = daemonocle.Daemon(worker=main)
-    daemon.do_action(sys.argv[1])
-
-This is **only** a problem if your class leaves files open upon instantiation. Otherwise, you don't
-have to worry about it. Oh, and if your using a file handler for your logger, you can probably use
-the ``delay=True`` option to avoid opening the file before it's needed.
+Since this "feature" of daemons often causes more problems than it solves, and the problems it
+causes sometimes have strange side-effects that make it very difficult to troubleshoot, this feature
+is optional and disabled by default in daemonocle via the ``close_open_files`` option.
 
 Detailed Usage
 --------------
@@ -331,7 +304,8 @@ constructor signature for the class:
 
     class daemonocle.Daemon(
         worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-        uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10)
+        uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10,
+        close_open_files=False)
 
 And here are descriptions of all the arguments:
 
@@ -376,6 +350,9 @@ And here are descriptions of all the arguments:
 
 **stop_timeout**
     Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
+
+**close_open_files**
+    Whether or not to close all open files when the daemon detaches. Default: ``False``
 
 Actions
 ~~~~~~~

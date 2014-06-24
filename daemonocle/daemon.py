@@ -25,7 +25,8 @@ class Daemon(object):
 
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10):
+            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10,
+            close_open_files=False):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
@@ -38,26 +39,11 @@ class Daemon(object):
         self.chrootdir = chrootdir
         self.umask = umask
         self.stop_timeout = stop_timeout
+        self.close_open_files = close_open_files
 
         self._pid_fd = None
         self._shutdown_complete = False
         self._orig_workdir = '/'
-
-        # Create a list of all open file descriptors so that when we
-        # close them later, we can skip ones that were opened after the
-        # Daemon object was created
-        max_fds = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
-        if max_fds == resource.RLIM_INFINITY:
-            # If the limit is infinity, use a more reasonable limit
-            max_fds = 2048
-        self._open_fds = []
-        for fd in range(max_fds):
-            try:
-                _ = os.fstat(fd)
-            except OSError:
-                continue
-            else:
-                self._open_fds.append(fd)
 
     @classmethod
     def _emit_message(cls, message):
@@ -193,7 +179,18 @@ class Daemon(object):
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
-        for fd in self._open_fds:
+        if self.close_open_files:
+            # Attempt to determine the max number of open files
+            max_fds = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
+            if max_fds == resource.RLIM_INFINITY:
+                # If the limit is infinity, use a more reasonable limit
+                max_fds = 2048
+        else:
+            # If we're not closing all open files, we at least need to
+            # reset STDIN, STDOUT, and STDERR.
+            max_fds = 3
+
+        for fd in range(max_fds):
             try:
                 os.close(fd)
             except OSError:
@@ -202,9 +199,9 @@ class Daemon(object):
 
         # Redirect STDIN, STDOUT, and STDERR to /dev/null
         devnull_fd = os.open(os.devnull, os.O_RDWR)
-        os.dup2(devnull_fd, sys.stdin.fileno())
-        os.dup2(devnull_fd, sys.stdout.fileno())
-        os.dup2(devnull_fd, sys.stderr.fileno())
+        os.dup2(devnull_fd, 0)
+        os.dup2(devnull_fd, 1)
+        os.dup2(devnull_fd, 2)
 
     @classmethod
     def _is_detach_necessary(cls):
