@@ -381,8 +381,8 @@ Here's an example:
 Then, if you did the basic ``daemon.do_action(sys.argv[1])`` like in all the examples above, you can
 call your action with a command like ``python example.py full-status``.
 
-Integration with click
-~~~~~~~~~~~~~~~~~~~~~~
+Integration with mitsuhiko's click
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "composable
 command line utility". The integration is in the form of a custom command class
