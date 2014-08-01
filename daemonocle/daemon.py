@@ -451,7 +451,7 @@ class Daemon(object):
 
         pid = self._read_pidfile()
         if pid is None:
-            # I don't think this should not be a fatal error
+            # I don't think this should be a fatal error
             self._emit_warning('{prog} is not running'.format(prog=self.prog))
             return
 
