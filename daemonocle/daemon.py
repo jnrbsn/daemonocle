@@ -490,7 +490,7 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is None:
             self._emit_message('{prog} -- not running\n'.format(prog=self.prog))
-            return
+            sys.exit(1)
 
         proc = psutil.Process(pid)
         # Default data

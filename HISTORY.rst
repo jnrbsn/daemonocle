@@ -5,6 +5,7 @@ v0.8 (not yet released)
 -----------------------
 
 * Upgraded click to version 2.5.
+* Status action now returns exit code 1 if the daemon is not running.
 
 v0.7 (2014-06-23)
 -----------------
