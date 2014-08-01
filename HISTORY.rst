@@ -1,7 +1,7 @@
 Release History
 ===============
 
-v0.8 (not yet released)
+v0.8 (2014-08-01)
 -----------------------
 
 * Upgraded click to version 2.5.
