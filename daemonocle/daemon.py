@@ -24,11 +24,12 @@ class Daemon(object):
     """This is the main class for creating a daemon using daemonocle."""
 
     def __init__(
-            self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
+            self, worker=None, terminate_callback=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
             uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10,
             close_open_files=False):
         """Create a new Daemon object."""
         self.worker = worker
+        self.terminate_callback = terminate_callback
         self.shutdown_callback = shutdown_callback
         self.prog = prog if prog is not None else os.path.basename(sys.argv[0])
         self.pidfile = pidfile
@@ -41,6 +42,7 @@ class Daemon(object):
         self.stop_timeout = stop_timeout
         self.close_open_files = close_open_files
 
+        self._terminated = False
         self._pid_fd = None
         self._shutdown_complete = False
         self._orig_workdir = '/'
@@ -356,8 +358,16 @@ class Daemon(object):
             signal.SIGQUIT: 'SIGQUIT',
             signal.SIGTERM: 'SIGTERM',
         }
-        message = 'Terminated by {name} ({number})'.format(
+        message = 'Interrupted by {name} ({number})'.format(
             name=signal_names[signal_number], number=signal_number)
+
+        if self.terminate_callback is not None:
+            if not self._terminated:
+                self._terminated = True
+                self.terminate_callback(message, code=128+signal_number)
+                return
+
+        message += ' while waiting for normal termination. Shutdown forced.'
         self._shutdown(message, code=128+signal_number)
 
     def _run(self):
