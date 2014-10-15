@@ -48,12 +48,23 @@ class DaemonCLI(click.MultiCommand):
         # The context object is a Daemon object
         daemon = ctx.obj
 
-        def subcommand(debug=False):
+        def subcommand(*args, **kwargs):
             """Call a daemonocle action."""
+            debug = kwargs.pop('debug', False)
             if daemon.detach and debug:
                 daemon.detach = False
 
+            # Pass the arguments of subcommand to the worker function
+            worker = daemon.worker
+            daemon.worker = lambda: worker(*args, **kwargs)
+
             daemon.do_action(name)
+
+        # Copy Click-specific attributes of the worker function
+        # to subcommand so decorators like click.pass_context can work
+        for attr in dir(daemon.worker):
+            if attr.startswith('__click'):
+                setattr(subcommand, attr, getattr(daemon.worker, attr))
 
         # Override the docstring for the function so that it shows up
         # correctly in the help output
