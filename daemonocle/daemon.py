@@ -25,7 +25,7 @@ class Daemon(object):
 
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10,
+            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10, kill_timeout=None,
             close_open_files=False):
         """Create a new Daemon object."""
         self.worker = worker
@@ -39,6 +39,7 @@ class Daemon(object):
         self.chrootdir = chrootdir
         self.umask = umask
         self.stop_timeout = stop_timeout
+        self.kill_timeout = kill_timeout
         self.close_open_files = close_open_files
 
         self._pid_fd = None
@@ -457,22 +458,47 @@ class Daemon(object):
 
         self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
 
-        try:
-            # Try to terminate the process
-            os.kill(pid, signal.SIGTERM)
-        except OSError as ex:
-            self._emit_failed()
-            self._emit_error(str(ex))
-            sys.exit(1)
+        pgid = os.getpgid(pid)
+        for gproc in psutil.process_iter():
+            try:
+                if os.getpgid(gproc.pid) == pgid and gproc.pid != 0:
+                    try:
+                        # Try to terminate the process
+                        os.kill(gproc.pid, signal.SIGTERM)
+                    except OSError as ex:
+                        self._emit_failed()
+                        self._emit_error(str(ex))
+                        sys.exit(1)
+            
+                    _, alive = psutil.wait_procs([psutil.Process(gproc.pid)], timeout=self.stop_timeout)
+                    if alive:
+                        # The process didn't terminate for some reason
+                        if self.kill_timeout:
+                            try:
+                                os.kill(gproc.pid, signal.SIGKILL)
+                            except OSError as ex:
+                                self._emit_failed()
+                                self._emit_error(str(ex))
+                                sys.exit(1)
+                    
+                            _, alive = psutil.wait_procs([psutil.Process(gproc.pid)], timeout=self.kill_timeout)
+                            if alive:
+                                self._emit_failed()
+                                self._emit_error('Timed out while waiting for process (PID {pid}) '
+                                                 'to terminate'.format(pid=gproc.pid))
+                                sys.exit(1)
+                            else:
+                                self._emit_message('{pid} '.format(pid=gproc.pid))
+                        else:
+                            self._emit_failed()
+                            self._emit_error('Timed out while waiting for process (PID {pid}) '
+                                             'to terminate'.format(pid=gproc.pid))
+                            sys.exit(1)
+                    else:
+                        self._emit_message('{pid} '.format(pid=gproc.pid))
 
-        _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=self.stop_timeout)
-        if alive:
-            # The process didn't terminate for some reason
-            self._emit_failed()
-            self._emit_error('Timed out while waiting for process (PID {pid}) '
-                             'to terminate'.format(pid=pid))
-            sys.exit(1)
-
+            except psutil.Error:
+                pass
         self._emit_ok()
 
     @expose_action
