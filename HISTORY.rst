@@ -6,6 +6,7 @@ v1.0 (not yet released)
 
 * Fixed bug with ``atexit`` handlers not being called in intermediate processes.
 * Fixed bug when PID file is a relative path.
+* Fixed bug when STDIN doesn't have a file descriptor number.
 
 v0.8 (2014-08-01)
 -----------------

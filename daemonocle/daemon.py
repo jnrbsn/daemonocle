@@ -205,24 +205,35 @@ class Daemon(object):
         os.dup2(devnull_fd, 2)
 
     @classmethod
+    def _is_socket(cls, stream):
+        """Check if the given stream is a socket."""
+        try:
+            fd = stream.fileno()
+        except ValueError:
+            # If it has no file descriptor, it's not a socket
+            return False
+
+        sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
+        try:
+            # This will raise a socket.error if it's not a socket
+            sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
+        except socket.error as ex:
+            if ex.args[0] != errno.ENOTSOCK:
+                # It must be a socket
+                return True
+        else:
+            # If an exception wasn't raised, it's a socket
+            return True
+
+    @classmethod
     def _is_detach_necessary(cls):
         """Check if detaching the process is even necessary."""
         if os.getppid() == 1:
             # Process was started by init
             return False
 
-        # The code below checks if STDIN is a socket, which means it was
-        # started by a super-server
-        sock = socket.fromfd(sys.stdin.fileno(), socket.AF_INET, socket.SOCK_RAW)
-        try:
-            # This will raise a socket.error if it's not a socket
-            _ = sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
-        except socket.error as ex:
-            if ex.args[0] != errno.ENOTSOCK:
-                # STDIN is a socket
-                return False
-        else:
-            # If it didn't raise an exception, STDIN is a socket
+        if cls._is_socket(sys.stdin):
+            # If STDIN is a socket, the daemon was started by a super-server
             return False
 
         return True
