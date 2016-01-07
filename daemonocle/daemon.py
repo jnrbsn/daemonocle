@@ -293,7 +293,7 @@ class Daemon(object):
         if wait_for_parent:
             try:
                 # Wait up to one second for the parent to exit
-                _, alive = psutil.wait_procs([psutil.Process(ppid)], timeout=1)
+                alive = psutil.wait_procs([psutil.Process(ppid)], timeout=1)[1]
             except psutil.NoSuchProcess:
                 return
             if alive:
@@ -422,7 +422,7 @@ class Daemon(object):
             pid = self._read_pidfile()
             if pid is not None:
                 # Wait for the process to exit
-                _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
+                alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)[1]
                 if alive:
                     # The process didn't exit for some reason
                     self._emit_failed()
