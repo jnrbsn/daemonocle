@@ -24,9 +24,9 @@ class Daemon(object):
     """This is the main class for creating a daemon using daemonocle."""
 
     def __init__(
-            self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10,
-            close_open_files=False):
+            self, worker=None, shutdown_callback=None, prog=None, pidfile=None,
+            detach=True, uid=None, gid=None, workdir='/', chrootdir=None,
+            umask=0o22, stop_timeout=10, close_open_files=False):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
@@ -98,8 +98,8 @@ class Daemon(object):
             try:
                 pid = int(fp.read())
             except ValueError:
-                self._emit_warning(
-                    'Empty or broken pidfile {pidfile}; removing'.format(pidfile=self.pidfile))
+                self._emit_warning('Empty or broken pidfile {pidfile}; '
+                                   'removing'.format(pidfile=self.pidfile))
                 pid = None
 
         if pid is not None and psutil.pid_exists(pid):
@@ -131,7 +131,7 @@ class Daemon(object):
         """Prevent the process from generating a core dump."""
         try:
             # Try to get the current limit
-            _ = resource.getrlimit(resource.RLIMIT_CORE)
+            resource.getrlimit(resource.RLIMIT_CORE)
         except ValueError:
             # System doesn't support the RLIMIT_CORE resource limit
             return
@@ -151,7 +151,8 @@ class Daemon(object):
                 os.chdir(self.chrootdir)
                 os.chroot(self.chrootdir)
             except Exception as ex:
-                raise DaemonError('Unable to change root directory ({error})'.format(error=str(ex)))
+                raise DaemonError('Unable to change root directory '
+                                  '({error})'.format(error=str(ex)))
 
         # Prevent the process from generating a core dump
         self._prevent_core_dump()
@@ -160,7 +161,8 @@ class Daemon(object):
             # Switch directories
             os.chdir(self.workdir)
         except Exception as ex:
-            raise DaemonError('Unable to change working directory ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to change working directory '
+                              '({error})'.format(error=str(ex)))
 
         # Create the directory for the pid file if necessary
         self._setup_piddir()
@@ -169,14 +171,16 @@ class Daemon(object):
             # Set file creation mask
             os.umask(self.umask)
         except Exception as ex:
-            raise DaemonError('Unable to change file creation mask ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to change file creation mask '
+                              '({error})'.format(error=str(ex)))
 
         try:
             # Switch users
             os.setgid(self.gid)
             os.setuid(self.uid)
         except Exception as ex:
-            raise DaemonError('Unable to setuid or setgid ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to setuid or setgid '
+                              '({error})'.format(error=str(ex)))
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
@@ -293,7 +297,8 @@ class Daemon(object):
             except psutil.NoSuchProcess:
                 return
             if alive:
-                raise DaemonError('Parent did not exit while trying to orphan process')
+                raise DaemonError(
+                    'Parent did not exit while trying to orphan process')
 
     @classmethod
     def _fork_and_supervise_child(cls):
@@ -325,7 +330,8 @@ class Daemon(object):
                 group_procs = []
                 for proc in psutil.process_iter():
                     try:
-                        if os.getpgid(proc.pid) == pgid and proc.pid not in exclude_pids:
+                        if (os.getpgid(proc.pid) == pgid and
+                                proc.pid not in exclude_pids):
                             # We found a process in this process group
                             group_procs.append(proc)
                     except (psutil.NoSuchProcess, OSError):
@@ -336,7 +342,8 @@ class Daemon(object):
                 else:
                     # No processes were found in this process group
                     # so we can exit
-                    cls._emit_message('All children are gone. Parent is exiting...\n')
+                    cls._emit_message(
+                        'All children are gone. Parent is exiting...\n')
                     sys.exit(0)
             except KeyboardInterrupt:
                 # Don't exit immediatedly on Ctrl-C, because we want to
@@ -373,7 +380,7 @@ class Daemon(object):
         self._shutdown(message, code=128+signal_number)
 
     def _run(self):
-        """Run the worker function with a bunch of custom exception handling."""
+        """Run the worker function with some custom exception handling."""
         try:
             # Run the worker
             self.worker()
@@ -382,10 +389,14 @@ class Daemon(object):
             if isinstance(ex.code, int):
                 if ex.code is not None and ex.code != 0:
                     # A custom exit code was specified
-                    self._shutdown('Exiting with non-zero exit code ' + str(ex.code), ex.code)
+                    self._shutdown(
+                        'Exiting with non-zero exit code {exitcode}'.format(
+                            exitcode=ex.code),
+                        ex.code)
             else:
                 # A message was passed to sys.exit()
-                self._shutdown('Exiting with message: ' + str(ex.code), 1)
+                self._shutdown(
+                    'Exiting with message: {msg}'.format(msg=ex.code), 1)
         except Exception as ex:
             if self.detach:
                 self._shutdown('Dying due to unhandled {cls}: {msg}'.format(
@@ -477,7 +488,8 @@ class Daemon(object):
             self._emit_error(str(ex))
             sys.exit(1)
 
-        _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=self.stop_timeout)
+        alive = psutil.wait_procs(
+            [psutil.Process(pid)], timeout=self.stop_timeout)[1]
         if alive:
             # The process didn't terminate for some reason
             self._emit_failed()
@@ -501,7 +513,8 @@ class Daemon(object):
 
         pid = self._read_pidfile()
         if pid is None:
-            self._emit_message('{prog} -- not running\n'.format(prog=self.prog))
+            self._emit_message(
+                '{prog} -- not running\n'.format(prog=self.prog))
             sys.exit(1)
 
         proc = psutil.Process(pid)
@@ -529,9 +542,9 @@ class Daemon(object):
         # Calculate the uptime and format it in a human-readable but
         # also machine-parsable format
         try:
-            uptime_minutes = int(round((time.time() - proc.create_time()) / 60))
-            uptime_hours, uptime_minutes = divmod(uptime_minutes, 60)
-            data['uptime'] = str(uptime_minutes) + 'm'
+            uptime_mins = int(round((time.time() - proc.create_time()) / 60))
+            uptime_hours, uptime_mins = divmod(uptime_mins, 60)
+            data['uptime'] = str(uptime_mins) + 'm'
             if uptime_hours:
                 uptime_days, uptime_hours = divmod(uptime_hours, 24)
                 data['uptime'] = str(uptime_hours) + 'h ' + data['uptime']
@@ -540,8 +553,8 @@ class Daemon(object):
         except psutil.Error:
             pass
 
-        template = ('{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, '
-                    '%cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
+        template = ('{prog} -- pid: {pid}, status: {status}, '
+                    'uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
         self._emit_message(template.format(**data))
 
     @classmethod
@@ -555,7 +568,7 @@ class Daemon(object):
         for func_name in dir(cls):
             func = getattr(cls, func_name)
             if (not hasattr(func, '__call__') or
-                    getattr(func, '__daemonocle_exposed__', False) is not True):
+                    not getattr(func, '__daemonocle_exposed__', False)):
                 # Not a function or not exposed
                 continue
             action = func_name.replace('_', '-')
@@ -569,13 +582,15 @@ class Daemon(object):
         func_name = action.replace('-', '_')
         if not hasattr(self, func_name):
             # Function doesn't exist
-            raise DaemonError('Invalid action "{action}"'.format(action=action))
+            raise DaemonError(
+                'Invalid action "{action}"'.format(action=action))
 
         func = getattr(self, func_name)
         if (not hasattr(func, '__call__') or
                 getattr(func, '__daemonocle_exposed__', False) is not True):
             # Not a function or not exposed
-            raise DaemonError('Invalid action "{action}"'.format(action=action))
+            raise DaemonError(
+                'Invalid action "{action}"'.format(action=action))
 
         return func
 
@@ -588,12 +603,16 @@ class Daemon(object):
         """Make the daemon reload itself."""
         pid = self._read_pidfile()
         if pid is None or pid != os.getpid():
-            raise DaemonError('Daemon.reload() should only be called by the daemon process itself')
+            raise DaemonError(
+                'Daemon.reload() should only be called by the daemon process '
+                'itself')
 
         # Copy the current environment
         new_environ = os.environ.copy()
         new_environ['DAEMONOCLE_RELOAD'] = 'true'
         # Start a new python process with the same arguments as this one
-        subprocess.call([sys.executable] + sys.argv, cwd=self._orig_workdir, env=new_environ)
+        subprocess.call(
+            [sys.executable] + sys.argv, cwd=self._orig_workdir,
+            env=new_environ)
         # Exit this process
         self._shutdown('Shutting down for reload')
