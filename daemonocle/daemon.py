@@ -269,7 +269,7 @@ class Daemon(object):
                 # The child is already gone for some reason
                 exitcode = status[1] % 255
                 self._emit_failed()
-                self._emit_error('Child exited immediately with non-zero exit '
+                self._emit_error('Child exited immediately with exit '
                                  'code {code}'.format(code=exitcode))
                 sys.exit(exitcode)
             else:
