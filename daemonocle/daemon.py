@@ -236,7 +236,7 @@ class Daemon(object):
             # check to make sure the second child is actually running
             # before exiting
             os.waitpid(pid, 0)
-            os._exit(0)
+            sys.exit(0)
 
         # Become a process group and session group leader
         os.setsid()
@@ -255,10 +255,10 @@ class Daemon(object):
                 self._emit_failed()
                 self._emit_error('Child exited immediately with non-zero exit '
                                  'code {code}'.format(code=exitcode))
-                os._exit(exitcode)
+                sys.exit(exitcode)
             else:
                 self._emit_ok()
-                os._exit(0)
+                sys.exit(0)
 
         self._reset_file_descriptors()
 
@@ -272,7 +272,7 @@ class Daemon(object):
         pid = os.fork()
         if pid > 0:
             # Exit parent
-            os._exit(0)
+            sys.exit(0)
 
         if wait_for_parent:
             try:

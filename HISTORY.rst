@@ -4,6 +4,7 @@ Release History
 v1.0 (not yet released)
 -----------------------
 
+* Fixed bug with ``atexit`` handlers not being called in intermediate processes.
 
 v0.8 (2014-08-01)
 -----------------
