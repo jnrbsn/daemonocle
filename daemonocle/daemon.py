@@ -32,6 +32,8 @@ class Daemon(object):
         self.shutdown_callback = shutdown_callback
         self.prog = prog if prog is not None else os.path.basename(sys.argv[0])
         self.pidfile = pidfile
+        if self.pidfile is not None:
+            self.pidfile = os.path.realpath(self.pidfile)
         self.detach = detach & self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
@@ -161,8 +163,7 @@ class Daemon(object):
             raise DaemonError('Unable to change working directory ({error})'.format(error=str(ex)))
 
         # Create the directory for the pid file if necessary
-        if self.pidfile is not None:
-            self._setup_piddir()
+        self._setup_piddir()
 
         try:
             # Set file creation mask
