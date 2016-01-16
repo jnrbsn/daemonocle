@@ -5,7 +5,7 @@ with open('README.rst') as fp:
 
 setup(
     name='xdaemonocle',
-    version='0.8.1',
+    version='0.8.2.dev0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
