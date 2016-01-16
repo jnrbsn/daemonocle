@@ -1,8 +1,8 @@
 Release History
 ===============
 
-v0.8 (2014-08-01)
------------------------
+0.8.1 (2016-01-16)
+------------------
 
 * Upgraded click to version 2.5.
 * Status action now returns exit code 1 if the daemon is not running.

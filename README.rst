@@ -3,6 +3,14 @@ daemonocle
 
 *A Python library for creating super fancy Unix daemons*
 
+.. note::
+
+    This is a patched version for daemonocle https://github.com/jnrbsn/daemonocle - please
+    refer the original project for any comments. I just made this release as I could not wait
+    upstream to release a fixed version. Please see https://github.com/jnrbsn/daemonocle/issues/8
+    - Mikko
+
+
 -----
 
 daemonocle is a library for creating your own Unix-style daemons written in Python. It solves many
