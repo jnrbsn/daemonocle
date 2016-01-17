@@ -4,8 +4,8 @@ with open('README.rst') as fp:
     long_description = fp.read().split('\n\n-----\n\n', 1)[1].lstrip()
 
 setup(
-    name='daemonocle',
-    version='0.8',
+    name='xdaemonocle',
+    version='0.8.2.dev0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
@@ -25,7 +25,7 @@ setup(
     keywords='daemon daemonize fork unix cli',
     packages=['daemonocle'],
     install_requires=[
-        'click==2.5',
-        'psutil==2.1.1',
+        'click',
+        'psutil',
     ],
 )
