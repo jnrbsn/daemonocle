@@ -10,6 +10,7 @@ v1.0 (not yet released)
 * Fixed bug when running in non-detached mode in a Docker container.
 * A TTY is no longer checked for when deciding how to run in non-detached mode.
   The behavior was inconsistent across different platforms.
+* Fixed bug when a process stopped before having chance to check if it stopped.
 
 v0.8 (2014-08-01)
 -----------------

@@ -230,6 +230,17 @@ class Daemon(object):
             return True
 
     @classmethod
+    def _pid_is_alive(cls, pid, timeout):
+        """Check if a PID is alive with a timeout."""
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return False
+        else:
+            gone, alive = psutil.wait_procs([proc], timeout=timeout)
+            return bool(alive)
+
+    @classmethod
     def _is_detach_necessary(cls):
         """Check if detaching the process is even necessary."""
         if os.getppid() == 1:
@@ -290,15 +301,9 @@ class Daemon(object):
             # Exit parent
             sys.exit(0)
 
-        if wait_for_parent:
-            try:
-                # Wait up to one second for the parent to exit
-                alive = psutil.wait_procs([psutil.Process(ppid)], timeout=1)[1]
-            except psutil.NoSuchProcess:
-                return
-            if alive:
-                raise DaemonError(
-                    'Parent did not exit while trying to orphan process')
+        if wait_for_parent and cls._pid_is_alive(ppid, timeout=1):
+            raise DaemonError(
+                'Parent did not exit while trying to orphan process')
 
     @classmethod
     def _fork_and_supervise_child(cls):
@@ -420,16 +425,14 @@ class Daemon(object):
             # Orhpan this process so the parent can exit
             self._orphan_this_process(wait_for_parent=True)
             pid = self._read_pidfile()
-            if pid is not None:
-                # Wait for the process to exit
-                alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)[1]
-                if alive:
-                    # The process didn't exit for some reason
-                    self._emit_failed()
-                    message = ('Previous process (PID {pid}) did NOT '
-                               'exit during reload').format(pid=pid)
-                    self._emit_error(message)
-                    self._shutdown(message, 1)
+            if (pid is not None and
+                    self._pid_is_alive(pid, timeout=self.stop_timeout)):
+                # The process didn't exit for some reason
+                self._emit_failed()
+                message = ('Previous process (PID {pid}) did NOT '
+                           'exit during reload').format(pid=pid)
+                self._emit_error(message)
+                self._shutdown(message, 1)
 
         # Check to see if the daemon is already running
         pid = self._read_pidfile()
@@ -487,9 +490,7 @@ class Daemon(object):
             self._emit_error(str(ex))
             sys.exit(1)
 
-        alive = psutil.wait_procs(
-            [psutil.Process(pid)], timeout=self.stop_timeout)[1]
-        if alive:
+        if self._pid_is_alive(pid, timeout=self.stop_timeout):
             # The process didn't terminate for some reason
             self._emit_failed()
             self._emit_error('Timed out while waiting for process (PID {pid}) '
