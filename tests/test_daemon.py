@@ -142,7 +142,7 @@ def test_pidfile(makepyfile):
     """)
 
     status_pattern = re.compile(
-        r'^foo -- pid: (\d+), status: running, '
+        r'^foo -- pid: (\d+), status: (?:running|sleeping), '
         r'uptime: [0-9mhd ]+, %cpu: \d+\.\d, %mem: \d+\.\d\n$')
 
     result = pyfile.run('start')
