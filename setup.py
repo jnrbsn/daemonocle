@@ -28,4 +28,11 @@ setup(
         'click==2.5',
         'psutil==2.1.1',
     ],
+    extras_require={
+        'test': [
+            'flake8',
+            'pytest',
+            'pytest-cov',
+        ],
+    },
 )
