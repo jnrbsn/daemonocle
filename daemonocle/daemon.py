@@ -320,7 +320,7 @@ class Daemon(object):
         pgid = os.getpgrp()
         exclude_pids = set([0, os.getpid()])
         proc = psutil.Process()
-        while os.getpgid(proc.pid) == pgid and proc.ppid() > 1:
+        while os.getpgid(proc.pid) == pgid:
             exclude_pids.add(proc.pid)
             proc = psutil.Process(proc.ppid())
 

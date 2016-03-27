@@ -7,6 +7,7 @@ v1.0 (not yet released)
 * Fixed bug with ``atexit`` handlers not being called in intermediate processes.
 * Fixed bug when PID file is a relative path.
 * Fixed bug when STDIN doesn't have a file descriptor number.
+* Fixed bug when running in non-detached mode in a Docker container.
 
 v0.8 (2014-08-01)
 -----------------
