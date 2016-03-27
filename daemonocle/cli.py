@@ -33,7 +33,8 @@ class DaemonCLI(click.MultiCommand):
 
         super(DaemonCLI, self).__init__(
             callback=callback, options_metavar=options_metavar,
-            subcommand_metavar=subcommand_metavar, context_settings=context_settings, **attrs
+            subcommand_metavar=subcommand_metavar,
+            context_settings=context_settings, **attrs
         )
 
     def list_commands(self, ctx):
@@ -67,7 +68,8 @@ class DaemonCLI(click.MultiCommand):
             )(subcommand)
 
         # Make it into a click command
-        subcommand = click.command(name, options_metavar=self.options_metavar)(subcommand)
+        subcommand = click.command(
+            name, options_metavar=self.options_metavar)(subcommand)
 
         return subcommand
 
