@@ -8,6 +8,8 @@ v1.0 (not yet released)
 * Fixed bug when PID file is a relative path.
 * Fixed bug when STDIN doesn't have a file descriptor number.
 * Fixed bug when running in non-detached mode in a Docker container.
+* A TTY is no longer checked for when deciding how to run in non-detached mode.
+  The behavior was inconsistent across different platforms.
 
 v0.8 (2014-08-01)
 -----------------

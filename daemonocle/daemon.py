@@ -439,8 +439,7 @@ class Daemon(object):
                 prog=self.prog, pid=pid))
             return
 
-        if (not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and
-                psutil.Process().terminal() is not None):
+        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
             # This keeps the original parent process open so that we
             # maintain control of the tty
             self._fork_and_supervise_child()
