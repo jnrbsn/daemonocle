@@ -23,7 +23,7 @@ class _PyFile(object):
         self.basename = 'script.py'
         self.realpath = os.path.join(self.dirname, self.basename)
         with open(self.realpath, 'wb') as f:
-            f.write(textwrap.dedent(code.lstrip('\n')))
+            f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
 
     def run(self, *args):
         proc = subprocess.Popen(
@@ -80,13 +80,13 @@ def test_simple(makepyfile):
     """)
     result = pyfile.run('start')
     assert result.returncode == 0
-    assert result.stdout == 'Starting foo ... OK\n'
-    assert result.stderr == ''
+    assert result.stdout == b'Starting foo ... OK\n'
+    assert result.stderr == b''
 
     result = pyfile.run('stop')
     assert result.returncode == 1
-    assert result.stdout == ''
-    assert 'DaemonError: Cannot stop daemon without PID file' in result.stderr
+    assert result.stdout == b''
+    assert b'DaemonError: Cannot stop daemon without PID file' in result.stderr
 
 
 def test_immediate_exit(makepyfile):
@@ -102,9 +102,9 @@ def test_immediate_exit(makepyfile):
     """)
     result = pyfile.run()
     assert result.returncode == 0
-    assert result.stdout == 'Starting foo ... FAILED\n'
-    assert result.stderr == ('ERROR: Child exited immediately with '
-                             'exit code 42\n')
+    assert result.stdout == b'Starting foo ... FAILED\n'
+    assert result.stderr == (b'ERROR: Child exited immediately with '
+                             b'exit code 42\n')
 
 
 def test_non_detached(makepyfile):
@@ -122,10 +122,10 @@ def test_non_detached(makepyfile):
     result = pyfile.run()
     assert result.returncode == 0
     assert result.stdout == (
-        'Starting foo ... OK\n'
-        'hello world\n'
-        'All children are gone. Parent is exiting...\n')
-    assert result.stderr == ''
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
 
 
 def test_pidfile(makepyfile):
@@ -142,31 +142,31 @@ def test_pidfile(makepyfile):
     """)
 
     status_pattern = re.compile(
-        r'^foo -- pid: (\d+), status: (?:running|sleeping), '
-        r'uptime: [0-9mhd ]+, %cpu: \d+\.\d, %mem: \d+\.\d\n$')
+        br'^foo -- pid: (\d+), status: (?:running|sleeping), '
+        br'uptime: [0-9mhd ]+, %cpu: \d+\.\d, %mem: \d+\.\d\n$')
 
     result = pyfile.run('start')
     assert result.returncode == 0
-    assert result.stdout == 'Starting foo ... OK\n'
-    assert result.stderr == ''
+    assert result.stdout == b'Starting foo ... OK\n'
+    assert result.stderr == b''
 
     result = pyfile.run('status')
     assert result.returncode == 0
     match = status_pattern.match(result.stdout)
     assert match
     pid1 = int(match.group(1))
-    assert result.stderr == ''
+    assert result.stderr == b''
 
     result = pyfile.run('start')
     assert result.returncode == 0
-    assert result.stdout == ''
-    assert result.stderr == ('WARNING: foo already running with PID '
-                             '{pid}\n'.format(pid=pid1))
+    assert result.stdout == b''
+    assert result.stderr == (b'WARNING: foo already running with PID '
+                             b'%d\n' % pid1)
 
     result = pyfile.run('restart')
     assert result.returncode == 0
-    assert result.stdout == 'Stopping foo ... OK\nStarting foo ... OK\n'
-    assert result.stderr == ''
+    assert result.stdout == b'Stopping foo ... OK\nStarting foo ... OK\n'
+    assert result.stderr == b''
 
     result = pyfile.run('status')
     assert result.returncode == 0
@@ -174,22 +174,22 @@ def test_pidfile(makepyfile):
     assert match
     pid2 = int(match.group(1))
     assert pid1 != pid2
-    assert result.stderr == ''
+    assert result.stderr == b''
 
     result = pyfile.run('stop')
     assert result.returncode == 0
-    assert result.stdout == 'Stopping foo ... OK\n'
-    assert result.stderr == ''
+    assert result.stdout == b'Stopping foo ... OK\n'
+    assert result.stderr == b''
 
     result = pyfile.run('status')
     assert result.returncode == 1
-    assert result.stdout == 'foo -- not running\n'
-    assert result.stderr == ''
+    assert result.stdout == b'foo -- not running\n'
+    assert result.stderr == b''
 
     result = pyfile.run('stop')
     assert result.returncode == 0
-    assert result.stdout == ''
-    assert result.stderr == 'WARNING: foo is not running\n'
+    assert result.stdout == b''
+    assert result.stderr == b'WARNING: foo is not running\n'
 
 
 def test_piddir(makepyfile):
@@ -231,18 +231,18 @@ def test_broken_pidfile(makepyfile):
 
     # Break the PID file
     with open(pidfile, 'wb') as f:
-        f.write('banana\n')
+        f.write(b'banana\n')
 
     result = pyfile.run('status')
     assert result.returncode == 1
-    assert result.stdout == 'foo -- not running\n'
-    assert result.stderr == ('WARNING: Empty or broken pidfile {pidfile}; '
-                             'removing\n'.format(pidfile=pidfile))
+    assert result.stdout == b'foo -- not running\n'
+    assert result.stderr == (b'WARNING: Empty or broken pidfile %s; '
+                             b'removing\n' % pidfile.encode('utf-8'))
 
     result = pyfile.run('stop')
     assert result.returncode == 0
-    assert result.stdout == ''
-    assert result.stderr == 'WARNING: foo is not running\n'
+    assert result.stdout == b''
+    assert result.stderr == b'WARNING: foo is not running\n'
 
 
 def test_self_reload(makepyfile):
@@ -265,15 +265,15 @@ def test_self_reload(makepyfile):
     result = pyfile.run()
     assert result.returncode == 0
     match = re.match((
-        r'^Starting foo \.\.\. OK\n'
-        r'here is my pid: (\d+)\n'
-        r'Reloading foo \.\.\. OK\n'
-        r'here is my pid: (\d+)\n'
-        r'All children are gone\. Parent is exiting\.\.\.\n$'),
+        br'^Starting foo \.\.\. OK\n'
+        br'here is my pid: (\d+)\n'
+        br'Reloading foo \.\.\. OK\n'
+        br'here is my pid: (\d+)\n'
+        br'All children are gone\. Parent is exiting\.\.\.\n$'),
         result.stdout)
     assert match
     assert match.group(1) != match.group(2)
-    assert result.stderr == ''
+    assert result.stderr == b''
 
 
 def test_default_actions():
