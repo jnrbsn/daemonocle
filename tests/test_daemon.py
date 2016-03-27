@@ -160,8 +160,8 @@ def test_pidfile(makepyfile):
     result = pyfile.run('start')
     assert result.returncode == 0
     assert result.stdout == b''
-    assert result.stderr == (b'WARNING: foo already running with PID '
-                             b'%d\n' % pid1)
+    assert result.stderr == ('WARNING: foo already running with PID '
+                             '{pid}\n'.format(pid=pid1)).encode('utf-8')
 
     result = pyfile.run('restart')
     assert result.returncode == 0
@@ -236,8 +236,9 @@ def test_broken_pidfile(makepyfile):
     result = pyfile.run('status')
     assert result.returncode == 1
     assert result.stdout == b'foo -- not running\n'
-    assert result.stderr == (b'WARNING: Empty or broken pidfile %s; '
-                             b'removing\n' % pidfile.encode('utf-8'))
+    assert result.stderr == ('WARNING: Empty or broken pidfile {pidfile}; '
+                             'removing\n').format(
+                                pidfile=pidfile).encode('utf8')
 
     result = pyfile.run('stop')
     assert result.returncode == 0
