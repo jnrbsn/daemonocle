@@ -1,10 +1,11 @@
-dist: trusty
 language: python
 python:
   - 2.7
   - 3.3
   - 3.4
   - 3.5
+sudo: required
+dist: trusty
 install:
   - pip install -e .[test]
 script:
