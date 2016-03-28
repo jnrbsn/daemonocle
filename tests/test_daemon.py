@@ -2,6 +2,7 @@ from collections import namedtuple
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -239,6 +240,40 @@ def test_broken_pidfile(makepyfile):
     assert result.stderr == ('WARNING: Empty or broken pidfile {pidfile}; '
                              'removing\n').format(
                                 pidfile=pidfile).encode('utf8')
+
+    result = pyfile.run('stop')
+    assert result.returncode == 0
+    assert result.stdout == b''
+    assert result.stderr == b'WARNING: foo is not running\n'
+
+
+def test_stale_pidfile(makepyfile):
+    pyfile = makepyfile("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon.do_action(sys.argv[1])
+    """)
+    pidfile = os.path.realpath(os.path.join(pyfile.dirname, 'foo.pid'))
+
+    pyfile.run('start')
+
+    with open(pidfile, 'rb') as f:
+        pid = int(f.read())
+
+    os.kill(pid, signal.SIGKILL)
+
+    result = pyfile.run('status')
+    assert result.returncode == 1
+    assert result.stdout == b'foo -- not running\n'
+    assert result.stderr == b''
+
+    assert not os.path.isfile(pidfile)
 
     result = pyfile.run('stop')
     assert result.returncode == 0
