@@ -11,7 +11,7 @@ import textwrap
 import psutil
 import pytest
 
-from daemonocle import Daemon
+from daemonocle import Daemon, DaemonError, expose_action
 
 
 class _PyFile(object):
@@ -43,7 +43,7 @@ class _PyFile(object):
                     procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                 continue
-        _, alive = psutil.wait_procs(procs, timeout=1)
+        gone, alive = psutil.wait_procs(procs, timeout=1)
         if alive:
             raise OSError('Failed to terminate subprocesses')
         shutil.rmtree(self.dirname)
@@ -83,6 +83,12 @@ def test_simple(makepyfile):
     assert result.returncode == 0
     assert result.stdout == b'Starting foo ... OK\n'
     assert result.stderr == b''
+
+    result = pyfile.run('status')
+    assert result.returncode == 1
+    assert result.stdout == b''
+    assert (b'DaemonError: Cannot get status of daemon '
+            b'without PID file') in result.stderr
 
     result = pyfile.run('stop')
     assert result.returncode == 1
@@ -311,6 +317,11 @@ def test_self_reload(makepyfile):
     assert match.group(1) != match.group(2)
     assert result.stderr == b''
 
+    daemon = Daemon()
+    with pytest.raises(DaemonError):
+        # Don't allow calling reload like this
+        daemon.reload()
+
 
 def test_default_actions():
     daemon = Daemon()
@@ -319,3 +330,67 @@ def test_default_actions():
     assert daemon.get_action('stop') == daemon.stop
     assert daemon.get_action('restart') == daemon.restart
     assert daemon.get_action('status') == daemon.status
+    with pytest.raises(DaemonError):
+        daemon.get_action('banana')
+
+
+def test_custom_actions():
+    class BananaDaemon(Daemon):
+        @expose_action
+        def banana(self):
+            pass
+
+        def plantain(self):
+            pass
+
+    daemon = BananaDaemon()
+    assert daemon.list_actions() == [
+        'start', 'stop', 'restart', 'status', 'banana']
+    assert daemon.get_action('banana') == daemon.banana
+    with pytest.raises(DaemonError):
+        daemon.get_action('plantain')
+
+
+def test_unresponsive_stop(makepyfile):
+    pyfile = makepyfile("""
+        import signal
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            def handle_sigterm(*args, **kwargs):
+                time.sleep(10)
+
+            signal.signal(signal.SIGTERM, handle_sigterm)
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        stop_timeout=1)
+        daemon.do_action(sys.argv[1])
+    """)
+    pidfile = os.path.realpath(os.path.join(pyfile.dirname, 'foo.pid'))
+
+    pyfile.run('start')
+
+    with open(pidfile, 'rb') as f:
+        pid = int(f.read())
+
+    result = pyfile.run('stop')
+    assert result.returncode == 1
+    assert result.stdout == b'Stopping foo ... FAILED\n'
+    assert result.stderr == ('ERROR: Timed out while waiting for process '
+                             '(PID {pid}) to terminate\n').format(
+                                pid=pid).encode('utf-8')
+
+    assert psutil.pid_exists(pid)
+
+    os.kill(pid, signal.SIGKILL)
+
+    try:
+        proc = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        pass
+    else:
+        gone, alive = psutil.wait_procs([proc], timeout=1)
+        assert gone and not alive
