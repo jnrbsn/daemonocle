@@ -5,8 +5,11 @@ daemonocle
 
 -----
 
-.. image:: https://travis-ci.org/jnrbsn/daemonocle.svg?branch=master
+.. image:: https://travis-ci.org/jnrbsn/daemonocle.svg?branch=wip-1.0
     :target: https://travis-ci.org/jnrbsn/daemonocle
+
+.. image:: https://coveralls.io/repos/github/jnrbsn/daemonocle/badge.svg?branch=wip-1.0
+    :target: https://coveralls.io/github/jnrbsn/daemonocle
 
 daemonocle is a library for creating your own Unix-style daemons written in Python. It solves many
 problems that other daemon libraries have and provides some really useful features you don't often

@@ -9,5 +9,7 @@ dist: trusty
 install:
   - pip install -e .[test]
 script:
-  - flake8 -v .
-  - py.test tests
+  - flake8 -v setup.py daemonocle tests
+  - py.test -v --cov=daemonocle --cov-report=term-missing tests
+after_success:
+  - coveralls
