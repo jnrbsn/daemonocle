@@ -24,10 +24,12 @@ class PyScript(object):
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
 
     def run(self, *args):
+        subenv = os.environ.copy()
+        subenv['PYTHONUNBUFFERED'] = 'x'
         proc = subprocess.Popen(
             [sys.executable, self.realpath] + list(args),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.dirname,
-            env={'PYTHONUNBUFFERED': '1'})
+            env=subenv)
         stdout, stderr = proc.communicate()
         return PyScriptResult(stdout, stderr, proc.pid, proc.returncode)
 
