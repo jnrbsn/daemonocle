@@ -331,3 +331,44 @@ def test_unresponsive_stop(pyscript):
     else:
         gone, alive = psutil.wait_procs([proc], timeout=1)
         assert gone and not alive
+
+
+def test_unresponsive_reload(pyscript):
+    script = pyscript("""
+        import os
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            print('here is my pid: {}'.format(os.getpid()))
+            daemon.reload()
+
+        def shutdown_callback(message, exitcode):
+            if not os.environ.get('DAEMONOCLE_RELOAD'):
+                time.sleep(2)
+
+        daemon = Daemon(worker=worker, shutdown_callback=shutdown_callback,
+                        prog='foo', pidfile='foo.pid', detach=False,
+                        stop_timeout=1)
+
+        daemon.do_action('start')
+    """)
+    result = script.run()
+
+    match = re.match((
+        br'^Starting foo \.\.\. OK\n'
+        br'here is my pid: (\d+)\n'
+        br'Reloading foo \.\.\. FAILED\n'
+        br'All children are gone\. Parent is exiting\.\.\.\n$'),
+        result.stdout)
+    assert match
+    pid1 = match.group(1)
+
+    match = re.match((
+        br'ERROR: Previous process \(PID (\d+)\) '
+        br'did NOT exit during reload\n$'),
+        result.stderr)
+    assert match
+    pid2 = match.group(1)
+
+    assert pid1 == pid2
