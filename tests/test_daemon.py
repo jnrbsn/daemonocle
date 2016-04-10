@@ -57,12 +57,10 @@ def test_immediate_exit(pyscript):
 
 def test_non_detached(pyscript):
     script = pyscript("""
-        import sys
         from daemonocle import Daemon
 
         def worker():
             print('hello world')
-            sys.stdout.flush()
 
         daemon = Daemon(worker=worker, prog='foo', detach=False)
         daemon.do_action('start')
@@ -231,14 +229,12 @@ def test_stale_pidfile(pyscript):
 def test_self_reload(pyscript):
     script = pyscript("""
         import os
-        import sys
         from daemonocle import Daemon
 
         daemon = Daemon(prog='foo', pidfile='foo.pid', detach=False)
 
         def worker():
             print('here is my pid: {}'.format(os.getpid()))
-            sys.stdout.flush()
             if not os.environ.get('DAEMONOCLE_RELOAD'):
                 daemon.reload()
 

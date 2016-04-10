@@ -26,7 +26,8 @@ class PyScript(object):
     def run(self, *args):
         proc = subprocess.Popen(
             [sys.executable, self.realpath] + list(args),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.dirname)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.dirname,
+            env={'PYTHONUNBUFFERED': '1'})
         stdout, stderr = proc.communicate()
         return PyScriptResult(stdout, stderr, proc.pid, proc.returncode)
 
