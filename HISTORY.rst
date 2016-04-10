@@ -11,6 +11,8 @@ v1.0 (not yet released)
 * A TTY is no longer checked for when deciding how to run in non-detached mode.
   The behavior was inconsistent across different platforms.
 * Fixed bug when a process stopped before having chance to check if it stopped.
+* Fixed bug where an exception could be raised if a PID file is already gone
+  when trying to remove it.
 
 v0.8 (2014-08-01)
 -----------------

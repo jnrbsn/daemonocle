@@ -124,7 +124,11 @@ class Daemon(object):
         """Closes and removes the PID file."""
         if self._pid_fd is not None:
             os.close(self._pid_fd)
-        os.remove(self.pidfile)
+        try:
+            os.remove(self.pidfile)
+        except OSError as ex:
+            if ex.errno != errno.ENOENT:
+                raise
 
     @classmethod
     def _prevent_core_dump(cls):
