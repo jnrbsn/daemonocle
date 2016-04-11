@@ -37,6 +37,12 @@ def test_simple(pyscript):
     assert b'DaemonError: Cannot stop daemon without PID file' in result.stderr
 
 
+def test_no_worker():
+    daemon = Daemon()
+    with pytest.raises(DaemonError):
+        daemon.do_action('start')
+
+
 def test_immediate_exit(pyscript):
     script = pyscript("""
         import sys
@@ -226,6 +232,56 @@ def test_stale_pidfile(pyscript):
     assert result.stderr == b'WARNING: foo is not running\n'
 
 
+def test_status_uptime(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+
+        now = time.time()
+        if sys.argv[1] == 'status':
+            time.time = lambda: now + int(sys.argv[2])
+
+        daemon.do_action(sys.argv[1])
+    """)
+
+    status_pattern = re.compile(
+        br'^foo -- pid: \d+, status: (?:running|sleeping), '
+        br'uptime: ([0-9mhd ]+), %cpu: \d+\.\d, %mem: \d+\.\d\n$')
+
+    script.run('start')
+
+    result = script.run('status', '0')
+    match = status_pattern.match(result.stdout)
+    assert match
+    assert match.group(1) == '0m'
+
+    result = script.run('status', '1000')
+    match = status_pattern.match(result.stdout)
+    assert match
+    assert match.group(1) == '17m'
+
+    result = script.run('status', '10000')
+    match = status_pattern.match(result.stdout)
+    assert match
+    assert match.group(1) == '2h 47m'
+
+    result = script.run('status', '100000')
+    match = status_pattern.match(result.stdout)
+    assert match
+    assert match.group(1) == '1d 3h 47m'
+
+    result = script.run('status', '1000000')
+    match = status_pattern.match(result.stdout)
+    assert match
+    assert match.group(1) == '11d 13h 47m'
+
+
 def test_self_reload(pyscript):
     script = pyscript("""
         import os
@@ -288,6 +344,81 @@ def test_custom_actions():
         daemon.get_action('plantain')
 
 
+def test_sys_exit_message(pyscript):
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        orig_dir = os.getcwd()
+
+        def worker():
+            time.sleep(2)
+            sys.exit('goodbye world')
+
+        def shutdown_callback(message, returncode):
+            with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
+                f.write(message)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        shutdown_callback=shutdown_callback)
+        daemon.do_action('start')
+    """)
+    script.run()
+
+    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+        pid = int(f.read())
+
+    psutil.wait_procs([psutil.Process(pid)])
+
+    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+        assert f.read() == 'Exiting with message: goodbye world'
+
+
+def test_uncaught_exception(pyscript):
+    script = pyscript("""
+        import os
+        import time
+        from daemonocle import Daemon
+
+        orig_dir = os.getcwd()
+
+        def worker():
+            time.sleep(2)
+            raise ValueError('banana')
+
+        def shutdown_callback(message, returncode):
+            with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
+                f.write(message)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        shutdown_callback=shutdown_callback)
+        daemon.do_action('start')
+    """)
+    script.run()
+
+    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+        pid = int(f.read())
+
+    psutil.wait_procs([psutil.Process(pid)])
+
+    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+        assert f.read() == 'Dying due to unhandled ValueError: banana'
+
+    script = pyscript("""
+        from daemonocle import Daemon
+
+        def worker():
+            raise ValueError('banana')
+
+        daemon = Daemon(worker=worker, prog='foo', detach=False)
+        daemon.do_action('start')
+    """)
+    result = script.run()
+    assert result.stderr.endswith('\nValueError: banana\n')
+
+
 def test_unresponsive_stop(pyscript):
     script = pyscript("""
         import signal
@@ -343,7 +474,7 @@ def test_unresponsive_reload(pyscript):
             print('here is my pid: {}'.format(os.getpid()))
             daemon.reload()
 
-        def shutdown_callback(message, exitcode):
+        def shutdown_callback(message, returncode):
             if not os.environ.get('DAEMONOCLE_RELOAD'):
                 time.sleep(2)
 
