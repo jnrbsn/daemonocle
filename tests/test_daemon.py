@@ -259,27 +259,27 @@ def test_status_uptime(pyscript):
     result = script.run('status', '0')
     match = status_pattern.match(result.stdout)
     assert match
-    assert match.group(1) == '0m'
+    assert match.group(1) == b'0m'
 
     result = script.run('status', '1000')
     match = status_pattern.match(result.stdout)
     assert match
-    assert match.group(1) == '17m'
+    assert match.group(1) == b'17m'
 
     result = script.run('status', '10000')
     match = status_pattern.match(result.stdout)
     assert match
-    assert match.group(1) == '2h 47m'
+    assert match.group(1) == b'2h 47m'
 
     result = script.run('status', '100000')
     match = status_pattern.match(result.stdout)
     assert match
-    assert match.group(1) == '1d 3h 47m'
+    assert match.group(1) == b'1d 3h 47m'
 
     result = script.run('status', '1000000')
     match = status_pattern.match(result.stdout)
     assert match
-    assert match.group(1) == '11d 13h 47m'
+    assert match.group(1) == b'11d 13h 47m'
 
 
 def test_self_reload(pyscript):
@@ -416,7 +416,7 @@ def test_uncaught_exception(pyscript):
         daemon.do_action('start')
     """)
     result = script.run()
-    assert result.stderr.endswith('\nValueError: banana\n')
+    assert result.stderr.endswith(b'\nValueError: banana\n')
 
 
 def test_unresponsive_stop(pyscript):
