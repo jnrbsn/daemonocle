@@ -31,7 +31,7 @@ def test_sys_exit_message(pyscript):
     with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
-    psutil.wait_procs([psutil.Process(pid)])
+    psutil.Process(pid).wait()
 
     with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Exiting with message: goodbye world'
@@ -62,7 +62,7 @@ def test_uncaught_exception(pyscript):
     with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
-    psutil.wait_procs([psutil.Process(pid)])
+    psutil.Process(pid).wait()
 
     with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Dying due to unhandled ValueError: banana'
@@ -121,8 +121,7 @@ def test_unresponsive_stop(pyscript):
     except psutil.NoSuchProcess:
         pass
     else:
-        gone, alive = psutil.wait_procs([proc], timeout=1)
-        assert gone and not alive
+        proc.wait(timeout=1)
 
 
 def test_unresponsive_reload(pyscript):

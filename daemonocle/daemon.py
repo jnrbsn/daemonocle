@@ -240,9 +240,13 @@ class Daemon(object):
             proc = psutil.Process(pid)
         except psutil.NoSuchProcess:
             return False
-        else:
-            gone, alive = psutil.wait_procs([proc], timeout=timeout)
-            return bool(alive)
+
+        try:
+            proc.wait(timeout=timeout)
+        except psutil.TimeoutExpired:
+            return True
+
+        return False
 
     @classmethod
     def _is_detach_necessary(cls):

@@ -60,8 +60,7 @@ class PyScript(object):
                     procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
                 continue
-        gone, alive = psutil.wait_procs(procs, timeout=1)
-        if alive:
+        if psutil.wait_procs(procs, timeout=1)[1]:
             raise OSError('Failed to terminate subprocesses')
         shutil.rmtree(self.dirname)
 
