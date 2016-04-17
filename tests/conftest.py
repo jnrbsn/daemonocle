@@ -10,27 +10,41 @@ import psutil
 import pytest
 
 
+def pytest_runtest_setup(item):
+    sudo_marker = item.get_marker('sudo')
+    if sudo_marker is not None:
+        try:
+            with open(os.devnull, 'w') as devnull:
+                subprocess.check_call(
+                    ['sudo', '-n', 'true'], stdout=devnull, stderr=devnull)
+        except subprocess.CalledProcessError:
+            pytest.skip('must be able to run sudo without a password')
+
+
 PyScriptResult = namedtuple(
     'PyScriptResult', ['stdout', 'stderr', 'pid', 'returncode'])
 
 
 class PyScript(object):
 
-    def __init__(self, code):
+    def __init__(self, code, sudo=False):
         self.dirname = os.path.realpath(
             tempfile.mkdtemp(prefix='daemonocle_pytest_'))
         self.basename = 'script.py'
         self.realpath = os.path.join(self.dirname, self.basename)
         with open(self.realpath, 'wb') as f:
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
+        self.sudo = sudo
 
     def run(self, *args):
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
+        base_command = [sys.executable, self.realpath]
+        if self.sudo:
+            base_command = ['sudo', '-E'] + base_command
         proc = subprocess.Popen(
-            [sys.executable, self.realpath] + list(args),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.dirname,
-            env=subenv)
+            base_command + list(args), cwd=self.dirname, env=subenv,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
         return PyScriptResult(stdout, stderr, proc.pid, proc.returncode)
 
@@ -55,7 +69,7 @@ def pyscript(request):
     pfs = []
 
     def factory(code):
-        pf = PyScript(code)
+        pf = PyScript(code, sudo=hasattr(request.function, 'sudo'))
         pfs.append(pf)
         return pf
 

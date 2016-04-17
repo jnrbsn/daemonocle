@@ -1,5 +1,7 @@
+from glob import glob
 import os
 import re
+import shutil
 import signal
 
 import psutil
@@ -547,7 +549,7 @@ def test_reset_file_descriptors(pyscript):
     script.run('stop')
 
 
-@pytest.mark.skipif(os.getuid() != 0, reason='must be root')
+@pytest.mark.sudo
 def test_chrootdir(pyscript):
     script = pyscript("""
         import os
@@ -568,6 +570,17 @@ def test_chrootdir(pyscript):
     with open(os.path.join(chrootdir, 'banana'), 'w') as f:
         f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
 
+    # The chroot messes up coverage
+    orig_cov_file = os.environ.get('COV_CORE_DATAFILE')
+    cov_file_prefix = os.path.basename(orig_cov_file)
+    os.environ['COV_CORE_DATAFILE'] = '/' + cov_file_prefix
+
     result = script.run()
+
+    # Move coverage files to expected location
+    for cov_file in glob(os.path.join(chrootdir, cov_file_prefix + '*')):
+        shutil.move(cov_file, os.path.dirname(orig_cov_file))
+    os.environ['COV_CORE_DATAFILE'] = orig_cov_file
+
     assert result.returncode == 0
     assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
