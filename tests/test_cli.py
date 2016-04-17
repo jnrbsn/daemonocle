@@ -92,4 +92,4 @@ def test_custom_actions(pyscript):
 
     result = script.run('plantain', '--help')
     assert result.returncode != 0
-    assert 'No such command' in result.stderr
+    assert b'No such command' in result.stderr
