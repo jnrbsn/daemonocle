@@ -503,3 +503,71 @@ def test_unresponsive_reload(pyscript):
     pid2 = match.group(1)
 
     assert pid1 == pid2
+
+
+def test_reset_file_descriptors(pyscript):
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            time.sleep(10)
+
+        open_file = open('foo.txt', 'w+')
+        close_files = bool(int(sys.argv[2])) if len(sys.argv) > 2 else False
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        workdir=os.getcwd(),
+                        close_open_files=close_files)
+        daemon.do_action(sys.argv[1])
+    """)
+    pidfile = os.path.join(script.dirname, 'foo.pid')
+
+    script.run('start', '0')
+
+    with open(pidfile, 'rb') as f:
+        proc = psutil.Process(int(f.read()))
+
+    assert proc.num_fds() > 4
+    open_files = [os.path.relpath(x.path, script.dirname)
+                  for x in proc.open_files()]
+    assert open_files == ['foo.txt', 'foo.pid']
+
+    script.run('restart', '1')
+
+    with open(pidfile, 'rb') as f:
+        proc = psutil.Process(int(f.read()))
+
+    assert proc.num_fds() == 4
+    open_files = [os.path.relpath(x.path, script.dirname)
+                  for x in proc.open_files()]
+    assert open_files == ['foo.pid']
+
+    script.run('stop')
+
+
+@pytest.mark.skipif(os.getuid() != 0, reason='must be root')
+def test_chrootdir(pyscript):
+    script = pyscript("""
+        import os
+        import sys
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stderr.write(':'.join(os.listdir('/')) + '\\n')
+            with open('/banana', 'r') as f:
+                sys.stderr.write(f.read() + '\\n')
+
+        daemon = Daemon(worker=worker, prog='foo', detach=False,
+                        chrootdir=os.path.join(os.getcwd(), 'foo'))
+        daemon.do_action('start')
+    """)
+    chrootdir = os.path.join(script.dirname, 'foo')
+    os.makedirs(chrootdir)
+    with open(os.path.join(chrootdir, 'banana'), 'w') as f:
+        f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
+
+    result = script.run()
+    assert result.returncode == 0
+    assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'

@@ -17,7 +17,8 @@ PyScriptResult = namedtuple(
 class PyScript(object):
 
     def __init__(self, code):
-        self.dirname = tempfile.mkdtemp(prefix='daemonocle_pytest_')
+        self.dirname = os.path.realpath(
+            tempfile.mkdtemp(prefix='daemonocle_pytest_'))
         self.basename = 'script.py'
         self.realpath = os.path.join(self.dirname, self.basename)
         with open(self.realpath, 'wb') as f:
