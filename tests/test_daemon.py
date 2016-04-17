@@ -550,6 +550,14 @@ def test_reset_file_descriptors(pyscript):
     script.run('stop')
 
 
+def test_chrootdir_without_permission():
+    daemon = Daemon(worker=lambda: None, chrootdir=os.getcwd())
+    with pytest.raises(DaemonError) as excinfo:
+        daemon.do_action('start')
+    assert ('Unable to change root directory '
+            '([Errno 1] Operation not permitted') in str(excinfo.value)
+
+
 @pytest.mark.sudo
 def test_chrootdir(pyscript):
     script = pyscript("""
@@ -585,6 +593,46 @@ def test_chrootdir(pyscript):
 
     assert result.returncode == 0
     assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
+
+
+def test_uid_and_gid_without_permission():
+    nobody = getpwnam('nobody')
+    daemon = Daemon(worker=lambda: None, uid=nobody.pw_uid, gid=nobody.pw_gid)
+    with pytest.raises(DaemonError) as excinfo:
+        daemon.do_action('start')
+    assert ('Unable to setuid or setgid '
+            '([Errno 1] Operation not permitted') in str(excinfo.value)
+
+
+@pytest.mark.sudo
+def test_uid_and_gid(pyscript):
+    nobody = getpwnam('nobody')
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo/foo.pid',
+                        workdir=os.getcwd(), uid={uid}, gid={gid})
+        daemon.do_action(sys.argv[1])
+    """.format(uid=nobody.pw_uid, gid=nobody.pw_gid))
+
+    result = script.run('start')
+    assert result.returncode == 0
+
+    with open(os.path.join(script.dirname, 'foo', 'foo.pid'), 'rb') as f:
+        proc = psutil.Process(int(f.read()))
+
+    uids = proc.uids()
+    assert uids.real == uids.effective == uids.saved == nobody.pw_uid
+    gids = proc.gids()
+    assert gids.real == gids.effective == gids.saved == nobody.pw_gid
+
+    script.run('stop')
 
 
 def test_umask(pyscript):

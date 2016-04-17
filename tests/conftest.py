@@ -30,6 +30,8 @@ class PyScript(object):
     def __init__(self, code, sudo=False):
         self.dirname = os.path.realpath(
             tempfile.mkdtemp(prefix='daemonocle_pytest_'))
+        # This chmod is necessary for the setuid/setgid tests
+        os.chmod(self.dirname, 0o711)
         self.basename = 'script.py'
         self.realpath = os.path.join(self.dirname, self.basename)
         with open(self.realpath, 'wb') as f:
