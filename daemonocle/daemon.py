@@ -82,7 +82,7 @@ class Daemon(object):
         piddir = os.path.dirname(self.pidfile)
         if not os.path.isdir(piddir):
             # Create the directory with sensible mode and ownership
-            os.makedirs(piddir, 0o755)
+            os.makedirs(piddir, 0o777 & ~self.umask)
             os.chown(piddir, self.uid, self.gid)
 
     def _read_pidfile(self):
@@ -117,7 +117,7 @@ class Daemon(object):
             flags = flags | os.O_EXLOCK
         except AttributeError:
             pass
-        self._pid_fd = os.open(self.pidfile, flags)
+        self._pid_fd = os.open(self.pidfile, flags, 0o666 & ~self.umask)
         os.write(self._pid_fd, str(os.getpid()).encode('utf-8'))
 
     def _close_pidfile(self):

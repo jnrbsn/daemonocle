@@ -1,5 +1,6 @@
 from glob import glob
 import os
+from pwd import getpwnam
 import re
 import shutil
 import signal
@@ -584,3 +585,52 @@ def test_chrootdir(pyscript):
 
     assert result.returncode == 0
     assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
+
+
+def test_umask(pyscript):
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            os.makedirs('foo')
+            with open('foo/bar.txt', 'w') as f:
+                f.write('hello world')
+            time.sleep(10)
+
+        kwargs = {'umask': int(sys.argv[2], 8)} if len(sys.argv) > 2 else {}
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        workdir=os.getcwd(), **kwargs)
+        daemon.do_action(sys.argv[1])
+    """)
+    pidfile = os.path.join(script.dirname, 'foo.pid')
+    testdir = os.path.join(script.dirname, 'foo')
+    testfile = os.path.join(testdir, 'bar.txt')
+
+    result = script.run('start')
+    assert result.returncode == 0
+    assert os.stat(pidfile).st_mode & 0o777 == 0o644
+    assert os.stat(testdir).st_mode & 0o777 == 0o755
+    assert os.stat(testfile).st_mode & 0o777 == 0o644
+
+    os.remove(testfile)
+    os.rmdir(testdir)
+
+    result = script.run('restart', '027')
+    assert result.returncode == 0
+    assert os.stat(pidfile).st_mode & 0o777 == 0o640
+    assert os.stat(testdir).st_mode & 0o777 == 0o750
+    assert os.stat(testfile).st_mode & 0o777 == 0o640
+
+    os.remove(testfile)
+    os.rmdir(testdir)
+
+    result = script.run('restart', '077')
+    assert result.returncode == 0
+    assert os.stat(pidfile).st_mode & 0o777 == 0o600
+    assert os.stat(testdir).st_mode & 0o777 == 0o700
+    assert os.stat(testfile).st_mode & 0o777 == 0o600
+
+    script.run('stop')

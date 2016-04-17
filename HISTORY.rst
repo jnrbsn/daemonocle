@@ -13,6 +13,10 @@ v1.0 (not yet released)
 * Fixed bug when a process stopped before having chance to check if it stopped.
 * Fixed bug where an exception could be raised if a PID file is already gone
   when trying to remove it.
+* Subdirectories created for PID files now respect the ``umask`` setting.
+* The pre-``umask`` mode for PID files is now ``0o666`` instead of ``0o777``,
+  which will result in a default mode of ``0o644`` instead of ``0o755`` when
+  using the default ``umask`` of ``0o22``.
 
 v0.8 (2014-08-01)
 -----------------
