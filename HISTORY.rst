@@ -1,8 +1,8 @@
 Release History
-===============
+---------------
 
-v1.0 (not yet released)
------------------------
+v1.0.0 (2016-04-17)
+~~~~~~~~~~~~~~~~~~~
 
 * Added official support for Python 2.7, 3.3, 3.4, and 3.5.
 * Added a comprehensive suite of unit tests with over 90% code coverage.
@@ -22,13 +22,13 @@ v1.0 (not yet released)
   using the default ``umask`` of ``0o22``.
 
 v0.8 (2014-08-01)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Upgraded click to version 2.5.
 * Status action now returns exit code 1 if the daemon is not running.
 
 v0.7 (2014-06-23)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Fixed bug that was causing an empty PID file on Python 3.
 * Upgraded click to version 2.1.
@@ -37,34 +37,34 @@ v0.7 (2014-06-23)
 * Added ``is_worker`` argument to ``DaemonCLI()`` as well as the ``pass_daemon`` decorator.
 
 v0.6 (2014-06-10)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Upgraded click to version 2.0.
 
 v0.5 (2014-06-09)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Fixed literal octal formatting to work with Python 3.
 
 v0.4 (2014-05-19)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Fixed bug with uptime calculation in status action.
 * Upgraded click to version 0.7.
 
 v0.3 (2014-05-14)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Reorganized package and cleaned up code.
 
 v0.2 (2014-05-12)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Renamed ``Daemon.get_actions()`` to ``Daemon.list_actions()``.
 * Improvements to documentation.
 * Fixed bug with non-detached mode when parent is in the same process group.
 
 v0.1 (2014-05-11)
------------------
+~~~~~~~~~~~~~~~~~
 
 * Initial release.

@@ -1,12 +1,15 @@
 from setuptools import setup
 
 
-with open('README.rst') as fp:
-    long_description = fp.read().split('\n\n-----\n\n', 1)[1].lstrip()
+with open('README.rst', 'r') as f:
+    long_description = f.read().split('\n\n-----\n\n', 1)[1].lstrip()
+
+with open('HISTORY.rst', 'r') as f:
+    long_description += '\n' + f.read()
 
 setup(
     name='daemonocle',
-    version='1.0-dev',
+    version='1.0.0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
