@@ -1,6 +1,11 @@
 Release History
 ---------------
 
+v1.0.1 (2016-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+* No changes in this release. Bumped version only to re-upload to PyPI.
+
 v1.0.0 (2016-04-17)
 ~~~~~~~~~~~~~~~~~~~
 
