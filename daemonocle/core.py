@@ -1,4 +1,4 @@
-"""This module provides the core functionality of daemonocle."""
+"""Core functionality of daemonocle"""
 
 import errno
 import os
@@ -24,14 +24,16 @@ class Daemon(object):
     """This is the main class for creating a daemon using daemonocle."""
 
     def __init__(
-            self, worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-            uid=None, gid=None, workdir='/', chrootdir=None, umask=0o22, stop_timeout=10,
-            close_open_files=False):
+            self, worker=None, shutdown_callback=None, prog=None, pidfile=None,
+            detach=True, uid=None, gid=None, workdir='/', chrootdir=None,
+            umask=0o22, stop_timeout=10, close_open_files=False):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
         self.prog = prog if prog is not None else os.path.basename(sys.argv[0])
         self.pidfile = pidfile
+        if self.pidfile is not None:
+            self.pidfile = os.path.realpath(self.pidfile)
         self.detach = detach & self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
@@ -80,7 +82,7 @@ class Daemon(object):
         piddir = os.path.dirname(self.pidfile)
         if not os.path.isdir(piddir):
             # Create the directory with sensible mode and ownership
-            os.makedirs(piddir, 0o755)
+            os.makedirs(piddir, 0o777 & ~self.umask)
             os.chown(piddir, self.uid, self.gid)
 
     def _read_pidfile(self):
@@ -96,8 +98,8 @@ class Daemon(object):
             try:
                 pid = int(fp.read())
             except ValueError:
-                self._emit_warning(
-                    'Empty or broken pidfile {pidfile}; removing'.format(pidfile=self.pidfile))
+                self._emit_warning('Empty or broken pidfile {pidfile}; '
+                                   'removing'.format(pidfile=self.pidfile))
                 pid = None
 
         if pid is not None and psutil.pid_exists(pid):
@@ -115,21 +117,25 @@ class Daemon(object):
             flags = flags | os.O_EXLOCK
         except AttributeError:
             pass
-        self._pid_fd = os.open(self.pidfile, flags)
+        self._pid_fd = os.open(self.pidfile, flags, 0o666 & ~self.umask)
         os.write(self._pid_fd, str(os.getpid()).encode('utf-8'))
 
     def _close_pidfile(self):
         """Closes and removes the PID file."""
         if self._pid_fd is not None:
             os.close(self._pid_fd)
-        os.remove(self.pidfile)
+        try:
+            os.remove(self.pidfile)
+        except OSError as ex:
+            if ex.errno != errno.ENOENT:
+                raise
 
     @classmethod
     def _prevent_core_dump(cls):
         """Prevent the process from generating a core dump."""
         try:
             # Try to get the current limit
-            _ = resource.getrlimit(resource.RLIMIT_CORE)
+            resource.getrlimit(resource.RLIMIT_CORE)
         except ValueError:
             # System doesn't support the RLIMIT_CORE resource limit
             return
@@ -149,7 +155,8 @@ class Daemon(object):
                 os.chdir(self.chrootdir)
                 os.chroot(self.chrootdir)
             except Exception as ex:
-                raise DaemonError('Unable to change root directory ({error})'.format(error=str(ex)))
+                raise DaemonError('Unable to change root directory '
+                                  '({error})'.format(error=str(ex)))
 
         # Prevent the process from generating a core dump
         self._prevent_core_dump()
@@ -158,24 +165,26 @@ class Daemon(object):
             # Switch directories
             os.chdir(self.workdir)
         except Exception as ex:
-            raise DaemonError('Unable to change working directory ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to change working directory '
+                              '({error})'.format(error=str(ex)))
 
         # Create the directory for the pid file if necessary
-        if self.pidfile is not None:
-            self._setup_piddir()
+        self._setup_piddir()
 
         try:
             # Set file creation mask
             os.umask(self.umask)
         except Exception as ex:
-            raise DaemonError('Unable to change file creation mask ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to change file creation mask '
+                              '({error})'.format(error=str(ex)))
 
         try:
             # Switch users
             os.setgid(self.gid)
             os.setuid(self.uid)
         except Exception as ex:
-            raise DaemonError('Unable to setuid or setgid ({error})'.format(error=str(ex)))
+            raise DaemonError('Unable to setuid or setgid '
+                              '({error})'.format(error=str(ex)))
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
@@ -204,24 +213,50 @@ class Daemon(object):
         os.dup2(devnull_fd, 2)
 
     @classmethod
+    def _is_socket(cls, stream):
+        """Check if the given stream is a socket."""
+        try:
+            fd = stream.fileno()
+        except ValueError:
+            # If it has no file descriptor, it's not a socket
+            return False
+
+        sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
+        try:
+            # This will raise a socket.error if it's not a socket
+            sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
+        except socket.error as ex:
+            if ex.args[0] != errno.ENOTSOCK:
+                # It must be a socket
+                return True
+        else:
+            # If an exception wasn't raised, it's a socket
+            return True
+
+    @classmethod
+    def _pid_is_alive(cls, pid, timeout):
+        """Check if a PID is alive with a timeout."""
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return False
+
+        try:
+            proc.wait(timeout=timeout)
+        except psutil.TimeoutExpired:
+            return True
+
+        return False
+
+    @classmethod
     def _is_detach_necessary(cls):
         """Check if detaching the process is even necessary."""
         if os.getppid() == 1:
             # Process was started by init
             return False
 
-        # The code below checks if STDIN is a socket, which means it was
-        # started by a super-server
-        sock = socket.fromfd(sys.stdin.fileno(), socket.AF_INET, socket.SOCK_RAW)
-        try:
-            # This will raise a socket.error if it's not a socket
-            _ = sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
-        except socket.error as ex:
-            if ex.args[0] != errno.ENOTSOCK:
-                # STDIN is a socket
-                return False
-        else:
-            # If it didn't raise an exception, STDIN is a socket
+        if cls._is_socket(sys.stdin):
+            # If STDIN is a socket, the daemon was started by a super-server
             return False
 
         return True
@@ -236,7 +271,7 @@ class Daemon(object):
             # check to make sure the second child is actually running
             # before exiting
             os.waitpid(pid, 0)
-            os._exit(0)
+            sys.exit(0)
 
         # Become a process group and session group leader
         os.setsid()
@@ -253,12 +288,12 @@ class Daemon(object):
                 # The child is already gone for some reason
                 exitcode = status[1] % 255
                 self._emit_failed()
-                self._emit_error('Child exited immediately with non-zero exit '
+                self._emit_error('Child exited immediately with exit '
                                  'code {code}'.format(code=exitcode))
-                os._exit(exitcode)
+                sys.exit(exitcode)
             else:
                 self._emit_ok()
-                os._exit(0)
+                sys.exit(0)
 
         self._reset_file_descriptors()
 
@@ -272,16 +307,11 @@ class Daemon(object):
         pid = os.fork()
         if pid > 0:
             # Exit parent
-            os._exit(0)
+            sys.exit(0)
 
-        if wait_for_parent:
-            try:
-                # Wait up to one second for the parent to exit
-                _, alive = psutil.wait_procs([psutil.Process(ppid)], timeout=1)
-            except psutil.NoSuchProcess:
-                return
-            if alive:
-                raise DaemonError('Parent did not exit while trying to orphan process')
+        if wait_for_parent and cls._pid_is_alive(ppid, timeout=1):
+            raise DaemonError(
+                'Parent did not exit while trying to orphan process')
 
     @classmethod
     def _fork_and_supervise_child(cls):
@@ -303,7 +333,7 @@ class Daemon(object):
         pgid = os.getpgrp()
         exclude_pids = set([0, os.getpid()])
         proc = psutil.Process()
-        while os.getpgid(proc.pid) == pgid and proc.ppid() > 1:
+        while os.getpgid(proc.pid) == pgid:
             exclude_pids.add(proc.pid)
             proc = psutil.Process(proc.ppid())
 
@@ -313,7 +343,8 @@ class Daemon(object):
                 group_procs = []
                 for proc in psutil.process_iter():
                     try:
-                        if os.getpgid(proc.pid) == pgid and proc.pid not in exclude_pids:
+                        if (os.getpgid(proc.pid) == pgid and
+                                proc.pid not in exclude_pids):
                             # We found a process in this process group
                             group_procs.append(proc)
                     except (psutil.NoSuchProcess, OSError):
@@ -324,7 +355,8 @@ class Daemon(object):
                 else:
                     # No processes were found in this process group
                     # so we can exit
-                    cls._emit_message('All children are gone. Parent is exiting...\n')
+                    cls._emit_message(
+                        'All children are gone. Parent is exiting...\n')
                     sys.exit(0)
             except KeyboardInterrupt:
                 # Don't exit immediatedly on Ctrl-C, because we want to
@@ -361,7 +393,7 @@ class Daemon(object):
         self._shutdown(message, code=128+signal_number)
 
     def _run(self):
-        """Run the worker function with a bunch of custom exception handling."""
+        """Run the worker function with some custom exception handling."""
         try:
             # Run the worker
             self.worker()
@@ -370,10 +402,14 @@ class Daemon(object):
             if isinstance(ex.code, int):
                 if ex.code is not None and ex.code != 0:
                     # A custom exit code was specified
-                    self._shutdown('Exiting with non-zero exit code ' + str(ex.code), ex.code)
+                    self._shutdown(
+                        'Exiting with non-zero exit code {exitcode}'.format(
+                            exitcode=ex.code),
+                        ex.code)
             else:
                 # A message was passed to sys.exit()
-                self._shutdown('Exiting with message: ' + str(ex.code), 1)
+                self._shutdown(
+                    'Exiting with message: {msg}'.format(msg=ex.code), 1)
         except Exception as ex:
             if self.detach:
                 self._shutdown('Dying due to unhandled {cls}: {msg}'.format(
@@ -397,16 +433,14 @@ class Daemon(object):
             # Orhpan this process so the parent can exit
             self._orphan_this_process(wait_for_parent=True)
             pid = self._read_pidfile()
-            if pid is not None:
-                # Wait for the process to exit
-                _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=5)
-                if alive:
-                    # The process didn't exit for some reason
-                    self._emit_failed()
-                    message = ('Previous process (PID {pid}) did NOT '
-                               'exit during reload').format(pid=pid)
-                    self._emit_error(message)
-                    self._shutdown(message, 1)
+            if (pid is not None and
+                    self._pid_is_alive(pid, timeout=self.stop_timeout)):
+                # The process didn't exit for some reason
+                self._emit_failed()
+                message = ('Previous process (PID {pid}) did NOT '
+                           'exit during reload').format(pid=pid)
+                self._emit_error(message)
+                self._shutdown(message, 1)
 
         # Check to see if the daemon is already running
         pid = self._read_pidfile()
@@ -416,8 +450,7 @@ class Daemon(object):
                 prog=self.prog, pid=pid))
             return
 
-        if (not self.detach and not os.environ.get('DAEMONOCLE_RELOAD') and
-                psutil.Process().terminal() is not None):
+        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
             # This keeps the original parent process open so that we
             # maintain control of the tty
             self._fork_and_supervise_child()
@@ -465,8 +498,7 @@ class Daemon(object):
             self._emit_error(str(ex))
             sys.exit(1)
 
-        _, alive = psutil.wait_procs([psutil.Process(pid)], timeout=self.stop_timeout)
-        if alive:
+        if self._pid_is_alive(pid, timeout=self.stop_timeout):
             # The process didn't terminate for some reason
             self._emit_failed()
             self._emit_error('Timed out while waiting for process (PID {pid}) '
@@ -489,7 +521,8 @@ class Daemon(object):
 
         pid = self._read_pidfile()
         if pid is None:
-            self._emit_message('{prog} -- not running\n'.format(prog=self.prog))
+            self._emit_message(
+                '{prog} -- not running\n'.format(prog=self.prog))
             sys.exit(1)
 
         proc = psutil.Process(pid)
@@ -517,9 +550,9 @@ class Daemon(object):
         # Calculate the uptime and format it in a human-readable but
         # also machine-parsable format
         try:
-            uptime_minutes = int(round((time.time() - proc.create_time()) / 60))
-            uptime_hours, uptime_minutes = divmod(uptime_minutes, 60)
-            data['uptime'] = str(uptime_minutes) + 'm'
+            uptime_mins = int(round((time.time() - proc.create_time()) / 60))
+            uptime_hours, uptime_mins = divmod(uptime_mins, 60)
+            data['uptime'] = str(uptime_mins) + 'm'
             if uptime_hours:
                 uptime_days, uptime_hours = divmod(uptime_hours, 24)
                 data['uptime'] = str(uptime_hours) + 'h ' + data['uptime']
@@ -528,8 +561,8 @@ class Daemon(object):
         except psutil.Error:
             pass
 
-        template = ('{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, '
-                    '%cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
+        template = ('{prog} -- pid: {pid}, status: {status}, '
+                    'uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
         self._emit_message(template.format(**data))
 
     @classmethod
@@ -543,7 +576,7 @@ class Daemon(object):
         for func_name in dir(cls):
             func = getattr(cls, func_name)
             if (not hasattr(func, '__call__') or
-                    getattr(func, '__daemonocle_exposed__', False) is not True):
+                    not getattr(func, '__daemonocle_exposed__', False)):
                 # Not a function or not exposed
                 continue
             action = func_name.replace('_', '-')
@@ -557,13 +590,15 @@ class Daemon(object):
         func_name = action.replace('-', '_')
         if not hasattr(self, func_name):
             # Function doesn't exist
-            raise DaemonError('Invalid action "{action}"'.format(action=action))
+            raise DaemonError(
+                'Invalid action "{action}"'.format(action=action))
 
         func = getattr(self, func_name)
         if (not hasattr(func, '__call__') or
                 getattr(func, '__daemonocle_exposed__', False) is not True):
             # Not a function or not exposed
-            raise DaemonError('Invalid action "{action}"'.format(action=action))
+            raise DaemonError(
+                'Invalid action "{action}"'.format(action=action))
 
         return func
 
@@ -576,12 +611,16 @@ class Daemon(object):
         """Make the daemon reload itself."""
         pid = self._read_pidfile()
         if pid is None or pid != os.getpid():
-            raise DaemonError('Daemon.reload() should only be called by the daemon process itself')
+            raise DaemonError(
+                'Daemon.reload() should only be called by the daemon process '
+                'itself')
 
         # Copy the current environment
         new_environ = os.environ.copy()
         new_environ['DAEMONOCLE_RELOAD'] = 'true'
         # Start a new python process with the same arguments as this one
-        subprocess.call([sys.executable] + sys.argv, cwd=self._orig_workdir, env=new_environ)
+        subprocess.call(
+            [sys.executable] + sys.argv, cwd=self._orig_workdir,
+            env=new_environ)
         # Exit this process
         self._shutdown('Shutting down for reload')

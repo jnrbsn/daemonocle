@@ -1,8 +1,28 @@
 Release History
 ===============
 
-v0.8 (2014-08-01)
+v1.0 (not yet released)
 -----------------------
+
+* Added official support for Python 2.7, 3.3, 3.4, and 3.5.
+* Added a comprehensive suite of unit tests with over 90% code coverage.
+* Dependencies (click and psutil) are no longer pinned to specific versions.
+* Fixed bug with ``atexit`` handlers not being called in intermediate processes.
+* Fixed bug when PID file is a relative path.
+* Fixed bug when STDIN doesn't have a file descriptor number.
+* Fixed bug when running in non-detached mode in a Docker container.
+* A TTY is no longer checked for when deciding how to run in non-detached mode.
+  The behavior was inconsistent across different platforms.
+* Fixed bug when a process stopped before having chance to check if it stopped.
+* Fixed bug where an exception could be raised if a PID file is already gone
+  when trying to remove it.
+* Subdirectories created for PID files now respect the ``umask`` setting.
+* The pre-``umask`` mode for PID files is now ``0o666`` instead of ``0o777``,
+  which will result in a default mode of ``0o644`` instead of ``0o755`` when
+  using the default ``umask`` of ``0o22``.
+
+v0.8 (2014-08-01)
+-----------------
 
 * Upgraded click to version 2.5.
 * Status action now returns exit code 1 if the daemon is not running.
