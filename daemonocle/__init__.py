@@ -3,12 +3,12 @@ daemonocle
 ==========
 
 A Python library for creating super fancy Unix daemons
-
 """
 
-from .daemon import Daemon, expose_action
+from .core import Daemon, expose_action
 from .cli import DaemonCLI, pass_daemon
 from .exceptions import DaemonError
+
 
 __all__ = [
     'Daemon',

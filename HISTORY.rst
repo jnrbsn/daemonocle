@@ -4,6 +4,9 @@ Release History
 v1.0 (not yet released)
 -----------------------
 
+* Added official support for Python 2.7, 3.3, 3.4, and 3.5.
+* Added a comprehensive suite of unit tests with over 90% code coverage.
+* Dependencies (click and psutil) are no longer pinned to specific versions.
 * Fixed bug with ``atexit`` handlers not being called in intermediate processes.
 * Fixed bug when PID file is a relative path.
 * Fixed bug when STDIN doesn't have a file descriptor number.

@@ -2,7 +2,7 @@
 
 import click
 
-from .daemon import Daemon
+from .core import Daemon
 
 
 class DaemonCLI(click.MultiCommand):

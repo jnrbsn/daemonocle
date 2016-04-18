@@ -1,4 +1,4 @@
-"""This module implements exceptions used internally by daemonocle."""
+"""Exceptions used internally by daemonocle"""
 
 
 class DaemonError(Exception):

@@ -1,4 +1,4 @@
-"""This module provides the core functionality of daemonocle."""
+"""Core functionality of daemonocle"""
 
 import errno
 import os
