@@ -270,8 +270,8 @@ class Daemon(object):
             # Wait for the first child, because it's going to wait and
             # check to make sure the second child is actually running
             # before exiting
-            os.waitpid(pid, 0)
-            sys.exit(0)
+            status = os.waitpid(pid, 0)
+            sys.exit(status[1] % 255)
 
         # Become a process group and session group leader
         os.setsid()
