@@ -221,8 +221,11 @@ class Daemon(object):
             # If it has no file descriptor, it's not a socket
             return False
 
-        sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
         try:
+            # This will raise a socket error on python 3.8 if it's not a
+            # socket, see https://bugs.python.org/issue39685
+            sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
+
             # This will raise a socket.error if it's not a socket
             sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
         except socket.error as ex:
