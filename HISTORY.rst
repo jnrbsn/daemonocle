@@ -5,6 +5,8 @@ v1.0.2 (not yet released)
 ~~~~~~~~~~~~~~~~~~~
 
 * Fixed bug checking if a stream is a socket on Python 3.8.
+* Closing open files is now more efficient on systems with a very high limit
+  on the number of open files.
 
 v1.0.1 (2016-04-17)
 ~~~~~~~~~~~~~~~~~~~

@@ -188,23 +188,38 @@ class Daemon(object):
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
-        if self.close_open_files:
-            # Attempt to determine the max number of open files
-            max_fds = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
-            if max_fds == resource.RLIM_INFINITY:
-                # If the limit is infinity, use a more reasonable limit
-                max_fds = 2048
-        else:
-            # If we're not closing all open files, we at least need to
-            # reset STDIN, STDOUT, and STDERR.
-            max_fds = 3
+        proc = psutil.Process()
 
-        for fd in range(max_fds):
-            try:
-                os.close(fd)
-            except OSError:
-                # The file descriptor probably wasn't open
-                pass
+        # STDIN, STDOUT, and STDERR
+        open_fds = {0, 1, 2}
+
+        if self.close_open_files:
+            # This only catches regular files, but it might be good enough
+            open_fds.update({f.fd for f in proc.open_files()})
+
+        # Try to close all files
+        for fd in open_fds:
+            os.close(fd)
+
+        if self.close_open_files and proc.num_fds() > 1:
+            # If there are still open file descriptors, we need to try
+            # harder to close them, but we shouldn't go overboard with
+            # it. The code below attempts to close any file descriptor
+            # less than 1024. Note: It seems that ``proc.num_fds()``
+            # always returns at least 1, for some reason.
+            for fd in range(3, 1024):
+                try:
+                    os.close(fd)
+                except OSError as ex:
+                    if ex.errno == errno.EBADF:
+                        # Bad file descriptor (i.e. it wasn't even open)
+                        continue
+                    raise
+                else:
+                    if proc.num_fds() <= 1:
+                        # When we get down to <= 1 file descriptors,
+                        # we can go ahead and stop
+                        break
 
         # Redirect STDIN, STDOUT, and STDERR to /dev/null
         devnull_fd = os.open(os.devnull, os.O_RDWR)
