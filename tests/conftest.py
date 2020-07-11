@@ -11,8 +11,8 @@ import pytest
 
 
 def pytest_runtest_setup(item):
-    sudo_marker = item.get_marker('sudo')
-    if sudo_marker is not None:
+    needs_sudo = item.get_closest_marker('sudo') is not None
+    if needs_sudo:
         try:
             with open(os.devnull, 'w') as devnull:
                 subprocess.check_call(
@@ -69,8 +69,10 @@ class PyScript(object):
 def pyscript(request):
     pfs = []
 
+    needs_sudo = request.node.get_closest_marker('sudo') is not None
+
     def factory(code):
-        pf = PyScript(code, sudo=hasattr(request.function, 'sudo'))
+        pf = PyScript(code, sudo=needs_sudo)
         pfs.append(pf)
         return pf
 
