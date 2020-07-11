@@ -82,15 +82,17 @@ def test_chrootdir(pyscript):
 
     # The chroot messes up coverage
     orig_cov_file = os.environ.get('COV_CORE_DATAFILE')
-    cov_file_prefix = os.path.basename(orig_cov_file)
-    os.environ['COV_CORE_DATAFILE'] = '/' + cov_file_prefix
+    if orig_cov_file:
+        cov_file_prefix = os.path.basename(orig_cov_file)
+        os.environ['COV_CORE_DATAFILE'] = '/' + cov_file_prefix
 
     result = script.run()
 
     # Move coverage files to expected location
-    for cov_file in glob(os.path.join(chrootdir, cov_file_prefix + '*')):
-        shutil.move(cov_file, os.path.dirname(orig_cov_file))
-    os.environ['COV_CORE_DATAFILE'] = orig_cov_file
+    if orig_cov_file:
+        for cov_file in glob(os.path.join(chrootdir, cov_file_prefix + '*')):
+            shutil.move(cov_file, os.path.dirname(orig_cov_file))
+        os.environ['COV_CORE_DATAFILE'] = orig_cov_file
 
     assert result.returncode == 0
     assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
