@@ -34,19 +34,19 @@ def test_reset_file_descriptors(pyscript):
         proc = psutil.Process(int(f.read()))
 
     assert proc.num_fds() > 4
-    open_files = [os.path.relpath(x.path, script.dirname)
-                  for x in proc.open_files()]
-    assert open_files == ['foo.txt', 'foo.pid']
+    open_files = {os.path.relpath(x.path, script.dirname)
+                  for x in proc.open_files()}
+    assert open_files == {'foo.txt', 'foo.pid'}
 
     script.run('restart', '1')
 
     with open(pidfile, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
-    assert proc.num_fds() == 4
-    open_files = [os.path.relpath(x.path, script.dirname)
-                  for x in proc.open_files()]
-    assert open_files == ['foo.pid']
+    assert proc.num_fds() <= 4
+    open_files = {os.path.relpath(x.path, script.dirname)
+                  for x in proc.open_files()}
+    assert open_files == {'foo.pid'}
 
     script.run('stop')
 
