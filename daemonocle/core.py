@@ -34,7 +34,7 @@ class Daemon(object):
         self.pidfile = pidfile
         if self.pidfile is not None:
             self.pidfile = os.path.realpath(self.pidfile)
-        self.detach = detach & self._is_detach_necessary()
+        self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
         self.workdir = workdir
@@ -188,29 +188,45 @@ class Daemon(object):
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
-        if self.close_open_files:
-            # Attempt to determine the max number of open files
-            max_fds = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
-            if max_fds == resource.RLIM_INFINITY:
-                # If the limit is infinity, use a more reasonable limit
-                max_fds = 2048
-        else:
-            # If we're not closing all open files, we at least need to
-            # reset STDIN, STDOUT, and STDERR.
-            max_fds = 3
+        proc = psutil.Process()
 
-        for fd in range(max_fds):
-            try:
-                os.close(fd)
-            except OSError:
-                # The file descriptor probably wasn't open
-                pass
+        # STDIN, STDOUT, and STDERR
+        open_fds = {0, 1, 2}
+
+        if self.close_open_files:
+            # This only catches regular files, but it might be good enough
+            open_fds.update({f.fd for f in proc.open_files()})
+
+        # Try to close all files
+        for fd in open_fds:
+            os.close(fd)
+
+        if self.close_open_files and proc.num_fds() > 1:
+            # If there are still open file descriptors, we need to try
+            # harder to close them, but we shouldn't go overboard with
+            # it. The code below attempts to close any file descriptor
+            # less than 1024. Note: It seems that ``proc.num_fds()``
+            # always returns at least 1, for some reason.
+            for fd in range(3, 1024):
+                try:
+                    os.close(fd)
+                except OSError as ex:
+                    if ex.errno == errno.EBADF:
+                        # Bad file descriptor (i.e. it wasn't even open)
+                        continue
+                    raise
+                else:
+                    if proc.num_fds() <= 1:
+                        # When we get down to <= 1 file descriptors,
+                        # we can go ahead and stop
+                        break
 
         # Redirect STDIN, STDOUT, and STDERR to /dev/null
         devnull_fd = os.open(os.devnull, os.O_RDWR)
         os.dup2(devnull_fd, 0)
         os.dup2(devnull_fd, 1)
         os.dup2(devnull_fd, 2)
+        os.close(devnull_fd)
 
     @classmethod
     def _is_socket(cls, stream):
@@ -221,9 +237,9 @@ class Daemon(object):
             # If it has no file descriptor, it's not a socket
             return False
 
-        sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
         try:
-            # This will raise a socket.error if it's not a socket
+            # These will raise a socket.error if it's not a socket
+            sock = socket.fromfd(fd, socket.AF_INET, socket.SOCK_RAW)
             sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
         except socket.error as ex:
             if ex.args[0] != errno.ENOTSOCK:
@@ -249,10 +265,41 @@ class Daemon(object):
         return False
 
     @classmethod
+    def _is_in_container(cls):
+        """Check if we're running inside a container."""
+        if not os.path.exists('/proc/1/cgroup'):
+            # If not on Linux, just assume we're not in a container
+            return False
+
+        container_types = {
+            b'docker',
+            b'docker-ce',
+            b'ecs',
+            b'kubepods',
+            b'lxc',
+        }
+
+        with open('/proc/1/cgroup', 'rb') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                name = line.split(b':', 2)[2]
+                name_parts = set(name.strip(b'/').split(b'/'))
+                if name_parts & container_types:
+                    return True
+
+        return False
+
+    @classmethod
     def _is_detach_necessary(cls):
         """Check if detaching the process is even necessary."""
-        if os.getppid() == 1:
-            # Process was started by init
+        if os.getpid() == 1:
+            # We're likely the only process in a container
+            return False
+
+        if os.getppid() == 1 and not cls._is_in_container():
+            # Process was started by PID 1, but NOT in a container
             return False
 
         if cls._is_socket(sys.stdin):
