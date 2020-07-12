@@ -8,5 +8,6 @@ dist/
 .pytest_cache/
 .coverage*
 htmlcov/
+.tox/
 
 venv/
