@@ -11,6 +11,8 @@ daemonocle
 .. image:: https://coveralls.io/repos/github/jnrbsn/daemonocle/badge.svg?branch=master
     :target: https://coveralls.io/github/jnrbsn/daemonocle
 
+.. image:: https://img.shields.io/pypi/pyversions/daemonocle
+
 daemonocle is a library for creating your own Unix-style daemons written in Python. It solves many
 problems that other daemon libraries have and provides some really useful features you don't often
 see in other daemons.

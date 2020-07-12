@@ -4,6 +4,7 @@ Release History
 v1.0.2 (not yet released)
 ~~~~~~~~~~~~~~~~~~~
 
+* Official support for Python 2.7, 3.6, 3.7, and 3.8.
 * Fixed bug checking if a stream is a socket on Python 3.8.
 * Closing open files is now more efficient on systems with a very high limit
   on the number of open files.
