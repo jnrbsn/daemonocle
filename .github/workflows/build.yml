@@ -24,6 +24,8 @@ jobs:
       run: |
         pytest -v --cov=daemonocle --cov-report=term-missing tests/
     - name: Coveralls
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        coveralls
