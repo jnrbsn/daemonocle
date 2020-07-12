@@ -6,7 +6,7 @@ daemonocle
 -----
 
 .. image:: https://github.com/jnrbsn/daemonocle/workflows/build/badge.svg?branch=master
-    :target: https://travis-ci.org/jnrbsn/daemonocle
+    :target: https://github.com/jnrbsn/daemonocle/actions?query=workflow:build+branch:master
 
 .. image:: https://coveralls.io/repos/github/jnrbsn/daemonocle/badge.svg?branch=master
     :target: https://coveralls.io/github/jnrbsn/daemonocle
