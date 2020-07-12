@@ -8,7 +8,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: [2.7, 3.6, 3.7, 3.8]
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out repo
+      uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -20,7 +21,12 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 daemonocle/ tests/ setup.py
-    - name: Test with pytest
+    - name: Test with pytest (without coverage)
+      if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.8'
+      run: |
+        pytest -v tests/
+    - name: Test with pytest (with coverage)
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
       run: |
         pytest -v --cov=daemonocle --cov-report=term-missing tests/
     - name: Coveralls
