@@ -34,7 +34,7 @@ class Daemon(object):
         self.pidfile = pidfile
         if self.pidfile is not None:
             self.pidfile = os.path.realpath(self.pidfile)
-        self.detach = detach & self._is_detach_necessary()
+        self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
         self.workdir = workdir
@@ -264,10 +264,41 @@ class Daemon(object):
         return False
 
     @classmethod
+    def _is_in_container(cls):
+        """Check if we're running inside a container."""
+        if not os.path.exists('/proc/1/cgroup'):
+            # If not on Linux, just assume we're not in a container
+            return False
+
+        container_types = {
+            b'docker',
+            b'docker-ce',
+            b'ecs',
+            b'kubepods',
+            b'lxc',
+        }
+
+        with open('/proc/1/cgroup', 'rb') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                name = line.split(b':', 2)[2]
+                name_parts = set(name.strip(b'/').split(b'/'))
+                if name_parts & container_types:
+                    return True
+
+        return False
+
+    @classmethod
     def _is_detach_necessary(cls):
         """Check if detaching the process is even necessary."""
-        if os.getppid() == 1:
-            # Process was started by init
+        if os.getpid() == 1:
+            # We're likely the only process in a container
+            return False
+
+        if os.getppid() == 1 and not cls._is_in_container():
+            # Process was started by PID 1, but NOT in a container
             return False
 
         if cls._is_socket(sys.stdin):
