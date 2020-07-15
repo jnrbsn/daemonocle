@@ -12,6 +12,7 @@ import time
 import psutil
 
 from .exceptions import DaemonError
+from .utils import proc_get_open_fds
 
 
 def expose_action(func):
@@ -111,10 +112,16 @@ class Daemon(object):
 
     def _write_pidfile(self):
         """Create, write to, and lock the PID file."""
-        flags = os.O_CREAT | os.O_RDWR
+        flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
         try:
-            # Some systems don't have os.O_EXLOCK
-            flags = flags | os.O_EXLOCK
+            # O_CLOEXEC is only available on Unix and Python >= 3.3
+            flags |= os.O_CLOEXEC
+        except AttributeError:
+            pass
+        try:
+            # O_EXLOCK is an extension that might not be present if not
+            # defined in the underlying C library
+            flags |= os.O_EXLOCK
         except AttributeError:
             pass
         self._pid_fd = os.open(self.pidfile, flags, 0o666 & ~self.umask)
@@ -190,36 +197,9 @@ class Daemon(object):
         """Close open file descriptors and redirect standard streams."""
         proc = psutil.Process()
 
-        # STDIN, STDOUT, and STDERR
-        open_fds = {0, 1, 2}
-
-        if self.close_open_files:
-            # This only catches regular files, but it might be good enough
-            open_fds.update({f.fd for f in proc.open_files()})
-
-        # Try to close all files
-        for fd in open_fds:
-            os.close(fd)
-
-        if self.close_open_files and proc.num_fds() > 1:
-            # If there are still open file descriptors, we need to try
-            # harder to close them, but we shouldn't go overboard with
-            # it. The code below attempts to close any file descriptor
-            # less than 1024. Note: It seems that ``proc.num_fds()``
-            # always returns at least 1, for some reason.
-            for fd in range(3, 1024):
-                try:
-                    os.close(fd)
-                except OSError as ex:
-                    if ex.errno == errno.EBADF:
-                        # Bad file descriptor (i.e. it wasn't even open)
-                        continue
-                    raise
-                else:
-                    if proc.num_fds() <= 1:
-                        # When we get down to <= 1 file descriptors,
-                        # we can go ahead and stop
-                        break
+        # Flush buffers
+        sys.stdout.flush()
+        sys.stderr.flush()
 
         # Redirect STDIN, STDOUT, and STDERR to /dev/null
         devnull_fd = os.open(os.devnull, os.O_RDWR)
@@ -227,6 +207,24 @@ class Daemon(object):
         os.dup2(devnull_fd, 1)
         os.dup2(devnull_fd, 2)
         os.close(devnull_fd)
+
+        if self.close_open_files:
+            # Close all open files except the standard streams and the
+            # PID file, if there is one
+            exclude_fds = {0, 1, 2}
+            if self._pid_fd:
+                exclude_fds.add(self._pid_fd)
+
+            for fd in proc_get_open_fds(proc):
+                if fd in exclude_fds:
+                    continue
+                try:
+                    os.close(fd)
+                except OSError as e:
+                    if e.errno == errno.EBADF:
+                        # Bad file descriptor. Maybe it got closed already?
+                        continue
+                    raise
 
     @classmethod
     def _is_socket(cls, stream):

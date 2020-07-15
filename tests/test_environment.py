@@ -7,6 +7,7 @@ import psutil
 import pytest
 
 from daemonocle import Daemon, DaemonError
+from daemonocle.utils import proc_get_open_fds
 
 
 def test_reset_file_descriptors(pyscript):
@@ -33,6 +34,7 @@ def test_reset_file_descriptors(pyscript):
     with open(pidfile, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
+    assert len(proc_get_open_fds(proc)) >= 5
     open_files = {os.path.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.txt', 'foo.pid'}
@@ -42,6 +44,7 @@ def test_reset_file_descriptors(pyscript):
     with open(pidfile, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
+    assert len(proc_get_open_fds(proc)) == 4
     open_files = {os.path.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.pid'}
