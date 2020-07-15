@@ -475,15 +475,16 @@ class Daemon(object):
             # If this is actually a reload, we need to wait for the
             # existing daemon to exit first
             self._emit_message('Reloading {prog} ... '.format(prog=self.prog))
+            # Get the parent PID before we orphan this process
+            ppid = os.getppid()
             # Orhpan this process so the parent can exit
             self._orphan_this_process(wait_for_parent=True)
-            pid = self._read_pidfile()
-            if (pid is not None and
-                    self._pid_is_alive(pid, timeout=self.stop_timeout)):
+            if (ppid is not None and
+                    self._pid_is_alive(ppid, timeout=self.stop_timeout)):
                 # The process didn't exit for some reason
                 self._emit_failed()
                 message = ('Previous process (PID {pid}) did NOT '
-                           'exit during reload').format(pid=pid)
+                           'exit during reload').format(pid=ppid)
                 self._emit_error(message)
                 self._shutdown(message, 1)
 
