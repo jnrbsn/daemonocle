@@ -28,15 +28,31 @@ PyScriptResult = namedtuple(
 class PyScript(object):
 
     def __init__(self, code, sudo=False):
-        self.dirname = os.path.realpath(
-            tempfile.mkdtemp(prefix='daemonocle_pytest_'))
-        # This chmod is necessary for the setuid/setgid tests
-        os.chmod(self.dirname, 0o711)
+        self.sudo = sudo
+        self.dirname = self._make_temp_dir()
         self.basename = 'script.py'
         self.realpath = os.path.join(self.dirname, self.basename)
         with open(self.realpath, 'wb') as f:
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
-        self.sudo = sudo
+
+    def _make_temp_dir(self):
+        if self.sudo and sys.platform == 'darwin':
+            # macOS has user-specific TMPDIRs, which don't work well
+            # with tests that require changing users. So this gets a
+            # global multi-user TMPDIR by using sudo.
+            base_temp_dir = subprocess.check_output([
+                'sudo', sys.executable, '-c',
+                'import tempfile as t; print(t.gettempdir())',
+            ]).decode('utf-8').strip()
+        else:
+            base_temp_dir = tempfile.gettempdir()
+
+        temp_dir = os.path.realpath(
+            tempfile.mkdtemp(prefix='daemonocle_pytest_', dir=base_temp_dir))
+        # This chmod is necessary for the setuid/setgid tests
+        os.chmod(temp_dir, 0o711)
+
+        return temp_dir
 
     def run(self, *args):
         subenv = os.environ.copy()
