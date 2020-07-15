@@ -5,18 +5,25 @@ daemonocle
 
 -----
 
-.. image:: https://github.com/jnrbsn/daemonocle/workflows/build/badge.svg?branch=master
+.. image:: https://img.shields.io/github/workflow/status/jnrbsn/daemonocle/build/master?style=flat-square
     :target: https://github.com/jnrbsn/daemonocle/actions?query=workflow:build+branch:master
 
-.. image:: https://coveralls.io/repos/github/jnrbsn/daemonocle/badge.svg?branch=master
+.. image:: https://img.shields.io/coveralls/jnrbsn/daemonocle/master.svg?style=flat-square
     :target: https://coveralls.io/github/jnrbsn/daemonocle
 
-.. image:: https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20unix-lightgrey
-    :target: https://en.wikipedia.org/wiki/Unix-like
+.. image:: https://img.shields.io/pypi/v/daemonocle.svg?style=flat-square
+    :target: https://pypi.org/project/daemonocle/
 
-.. image:: https://img.shields.io/pypi/pyversions/daemonocle
+.. image:: https://img.shields.io/pypi/pyversions/daemonocle?style=flat-square
     :target: https://docs.python.org/whatsnew/index.html
 
+.. image:: https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20unix-lightgrey?style=flat-square
+    :target: https://en.wikipedia.org/wiki/Unix-like
+
+.. image:: https://img.shields.io/github/license/jnrbsn/daemonocle?style=flat-square
+    :target: https://github.com/jnrbsn/daemonocle/blob/master/LICENSE
+
+|
 daemonocle is a library for creating your own Unix-style daemons written in Python. It solves many
 problems that other daemon libraries have and provides some really useful features you don't often
 see in other daemons.
