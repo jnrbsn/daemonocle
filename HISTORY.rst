@@ -4,6 +4,8 @@ Release History
 v1.1.0 (not yet released)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+* Official support for Python 3.9
+* Added back official support for Python 3.5
 * Fixed the ``close_open_files`` option to be much more reliable and consistent
   across different platforms.
 * Fixed a race condition with the self-reload functionality where the PID file

@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-10.15]
-        python-version: [2.7, 3.6, 3.7, 3.8]
+        python-version: [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
@@ -22,15 +22,15 @@ jobs:
       run: |
         flake8 daemonocle/ tests/ setup.py
     - name: Test with pytest (without coverage)
-      if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.8'
+      if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.9'
       run: |
         pytest -lv tests/
     - name: Test with pytest (with coverage)
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       run: |
         pytest -lv --cov=daemonocle --cov-report=term-missing tests/
     - name: Coveralls
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
