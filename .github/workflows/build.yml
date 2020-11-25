@@ -1,5 +1,8 @@
 name: build
 on: [push]
+defaults:
+  run:
+    shell: bash
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -21,17 +24,21 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 daemonocle/ tests/ setup.py
-    - name: Test with pytest (without coverage)
-      if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.9'
-      run: |
-        pytest -lv tests/
-    - name: Test with pytest (with coverage)
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
-      run: |
-        pytest -lv --cov=daemonocle --cov-report=term-missing tests/
-    - name: Coveralls
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
+    - name: Test with pytest
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_MATRIX_OS: ${{ matrix.os }}
+        GITHUB_MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
       run: |
-        coveralls
+        export COVERAGE_FILE=".coverage.${GITHUB_MATRIX_OS//[^0-9A-Za-z]/_}_py${GITHUB_MATRIX_PYTHON_VERSION//./}"
+        pytest -lv --cov=daemonocle --cov-report=term-missing tests/
+    - name: Upload coverage as artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
+        path: .coverage.*
+    # - name: Coveralls
+    #   if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     coveralls

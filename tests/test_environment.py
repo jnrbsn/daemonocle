@@ -68,7 +68,6 @@ def test_chrootdir(pyscript):
         from daemonocle import Daemon
 
         def worker():
-            sys.stderr.write(':'.join(os.listdir('/')) + '\\n')
             with open('/banana', 'r') as f:
                 sys.stderr.write(f.read() + '\\n')
 
@@ -76,6 +75,7 @@ def test_chrootdir(pyscript):
                         chrootdir=os.path.join(os.getcwd(), 'foo'))
         daemon.do_action('start')
     """)
+
     chrootdir = os.path.join(script.dirname, 'foo')
     os.makedirs(chrootdir)
     with open(os.path.join(chrootdir, 'banana'), 'w') as f:
@@ -85,18 +85,22 @@ def test_chrootdir(pyscript):
     orig_cov_file = os.environ.get('COV_CORE_DATAFILE')
     if orig_cov_file:
         cov_file_prefix = os.path.basename(orig_cov_file)
-        os.environ['COV_CORE_DATAFILE'] = '/' + cov_file_prefix
+        cov_file_dir = os.path.join(chrootdir, script.dirname.lstrip(os.sep))
+        os.makedirs(cov_file_dir)
+        os.environ['COV_CORE_DATAFILE'] = os.path.join(
+            script.dirname, cov_file_prefix)
 
     result = script.run()
 
     # Move coverage files to expected location
     if orig_cov_file:
-        for cov_file in glob(os.path.join(chrootdir, cov_file_prefix + '*')):
-            shutil.move(cov_file, os.path.dirname(orig_cov_file))
+        for cov_file in glob(os.path.join(
+                cov_file_dir, cov_file_prefix + '*')):
+            shutil.move(cov_file, script.dirname)
         os.environ['COV_CORE_DATAFILE'] = orig_cov_file
 
     assert result.returncode == 0
-    assert result.stderr == b'banana\npGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
+    assert result.stderr == b'pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
 
 
 def test_uid_and_gid_without_permission():
