@@ -4,6 +4,14 @@ Release History
 v1.1.0 (not yet released)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
+* Fixed the ``close_open_files`` option to be much more reliable and consistent
+  across different platforms.
+* Fixed a race condition with the self-reload functionality where the PID file
+  of the parent process was being deleted while the child process was trying to
+  read it.
+* All tests now pass on macOS (Intel) and the GitHub Actions build now runs on
+  macOS 10.15 in addition to Ubuntu.
+
 v1.0.2 (2020-07-12)
 ~~~~~~~~~~~~~~~~~~~
 
