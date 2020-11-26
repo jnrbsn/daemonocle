@@ -31,17 +31,14 @@ jobs:
       run: |
         export COVERAGE_FILE=".coverage.${GITHUB_MATRIX_OS//[^0-9A-Za-z]/_}_py${GITHUB_MATRIX_PYTHON_VERSION//./}"
         pytest -lv --cov=daemonocle --cov-report=term-missing tests/
+        printf "\t%s/daemonocle\n" "$PWD" > coverage-path.txt
     - name: Upload coverage as artifact
       uses: actions/upload-artifact@v2
       with:
         name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
-        path: .coverage.*
-    # - name: Coveralls
-    #   if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   run: |
-    #     coveralls
+        path: |
+          .coverage.*
+          coverage-path.txt
   coverage:
     needs: build
     runs-on: ubuntu-latest
@@ -58,8 +55,16 @@ jobs:
         pip install -e .[test]
     - name: Download coverage artifacts
       uses: actions/download-artifact@v2
-      with:
-        path: ./
-    - name: Test
+    - name: Combine coverage
       run: |
-        ls -alhF
+        printf "[paths]\nsource =\n\tdaemonocle\n" >> .coveragerc
+        find . -type f -name coverage-path.txt -exec cat {} \; | sort | uniq >> .coveragerc
+        echo ".coveragerc:"
+        cat .coveragerc
+        find . -type f -name '.coverage.*' | xargs coverage combine
+        coverage report --show-missing
+    - name: Coveralls
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        coveralls

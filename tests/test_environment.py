@@ -82,22 +82,21 @@ def test_chrootdir(pyscript):
         f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
 
     # The chroot messes up coverage
-    orig_cov_file = os.environ.get('COV_CORE_DATAFILE')
-    if orig_cov_file:
-        cov_file_prefix = os.path.basename(orig_cov_file)
+    cov_core_datafile = os.environ.get('COV_CORE_DATAFILE')
+    if cov_core_datafile:
+        cov_file_name = os.path.basename(cov_core_datafile)
         cov_file_dir = os.path.join(chrootdir, script.dirname.lstrip(os.sep))
         os.makedirs(cov_file_dir)
         os.environ['COV_CORE_DATAFILE'] = os.path.join(
-            script.dirname, cov_file_prefix)
+            script.dirname, cov_file_name)
 
     result = script.run()
 
     # Move coverage files to expected location
-    if orig_cov_file:
-        for cov_file in glob(os.path.join(
-                cov_file_dir, cov_file_prefix + '*')):
+    if cov_core_datafile:
+        for cov_file in glob(os.path.join(cov_file_dir, cov_file_name + '*')):
             shutil.move(cov_file, script.dirname)
-        os.environ['COV_CORE_DATAFILE'] = orig_cov_file
+        os.environ['COV_CORE_DATAFILE'] = cov_core_datafile
 
     assert result.returncode == 0
     assert result.stderr == b'pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
