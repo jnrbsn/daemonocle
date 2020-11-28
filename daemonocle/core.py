@@ -380,6 +380,8 @@ class Daemon(object):
         proc = psutil.Process()
         while os.getpgid(proc.pid) == pgid:
             exclude_pids.add(proc.pid)
+            if proc.pid == 1:
+                break
             proc = psutil.Process(proc.ppid())
 
         while True:
