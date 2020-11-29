@@ -189,3 +189,23 @@ def test_umask(pyscript):
     assert os.stat(testfile).st_mode & 0o777 == 0o600
 
     script.run('stop')
+
+
+def test_is_detach_necessary_pid1(monkeypatch):
+    def mock_os_getpid_1():
+        return 1
+
+    monkeypatch.setattr(os, 'getpid', mock_os_getpid_1)
+
+    assert not Daemon._is_detach_necessary()
+
+
+def test_is_detach_necessary_ppid1(monkeypatch):
+    def mock_os_getppid_1():
+        return 1
+
+    monkeypatch.setattr(os, 'getppid', mock_os_getppid_1)
+
+    # FIXME: This isn't really how I would prefer to test this,
+    # but this is a difficult thing to test.
+    assert Daemon._is_detach_necessary() == Daemon._is_in_container()
