@@ -1,6 +1,5 @@
 from setuptools import setup
 
-
 with open('README.rst', 'r') as f:
     long_description = f.read().split('\n\n-----\n\n', 1)[1].lstrip()
 
