@@ -196,8 +196,6 @@ class Daemon(object):
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""
-        proc = psutil.Process()
-
         # Flush buffers
         sys.stdout.flush()
         sys.stderr.flush()
@@ -216,7 +214,7 @@ class Daemon(object):
             if self._pid_fd:
                 exclude_fds.add(self._pid_fd)
 
-            for fd in proc_get_open_fds(proc):
+            for fd in proc_get_open_fds():
                 if fd in exclude_fds:
                     continue
                 try:

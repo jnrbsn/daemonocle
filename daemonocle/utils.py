@@ -8,9 +8,11 @@ _re_whitespace = re.compile(br'\s+')
 _re_non_digits = re.compile(br'[^\d]+')
 
 
-def proc_get_open_fds(proc):
+def proc_get_open_fds(pid=None):
     """Try really, really hard to get a process's open file descriptors"""
-    fd_dir = '/proc/{}/fd'.format(proc.pid)
+    pid = pid or os.getpid()
+
+    fd_dir = '/proc/{}/fd'.format(pid)
     if posixpath.isdir(fd_dir):
         # We're on Linux
         try:
@@ -31,7 +33,7 @@ def proc_get_open_fds(proc):
         # Not Linux (maybe macOS?)
         try:
             # Try getting FDs from lsof
-            cmd = ['lsof', '-a', '-d0-65535', '-p', str(proc.pid)]
+            cmd = ['lsof', '-a', '-d0-65535', '-p', str(pid)]
             p = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # We'll obviously need to exclude these below
