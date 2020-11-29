@@ -1,10 +1,11 @@
-from collections import namedtuple
 import os
+import posixpath
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
+from collections import namedtuple
 
 import psutil
 import pytest
@@ -31,8 +32,8 @@ class PyScript(object):
         self.sudo = sudo
         self.dirname = self._make_temp_dir()
         self.basename = 'script.py'
-        self.realpath = os.path.join(self.dirname, self.basename)
-        with open(self.realpath, 'wb') as f:
+        self.path = posixpath.join(self.dirname, self.basename)
+        with open(self.path, 'wb') as f:
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
 
     def _make_temp_dir(self):
@@ -47,7 +48,7 @@ class PyScript(object):
         else:
             base_temp_dir = tempfile.gettempdir()
 
-        temp_dir = os.path.realpath(
+        temp_dir = posixpath.abspath(
             tempfile.mkdtemp(prefix='daemonocle_pytest_', dir=base_temp_dir))
         # This chmod is necessary for the setuid/setgid tests
         os.chmod(temp_dir, 0o711)
@@ -57,7 +58,7 @@ class PyScript(object):
     def run(self, *args):
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
-        base_command = [sys.executable, self.realpath]
+        base_command = [sys.executable, self.path]
         if self.sudo:
             base_command = ['sudo', '-E'] + base_command
         proc = subprocess.Popen(
@@ -71,7 +72,7 @@ class PyScript(object):
         for proc in psutil.process_iter():
             try:
                 if (proc.exe() == sys.executable and
-                        self.realpath in proc.cmdline()):
+                        self.path in proc.cmdline()):
                     proc.terminate()
                     procs.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):

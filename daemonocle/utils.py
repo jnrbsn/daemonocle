@@ -1,8 +1,8 @@
 import errno
 import os
+import posixpath
 import re
 import subprocess
-
 
 _re_whitespace = re.compile(br'\s+')
 _re_non_digits = re.compile(br'[^\d]+')
@@ -11,7 +11,7 @@ _re_non_digits = re.compile(br'[^\d]+')
 def proc_get_open_fds(proc):
     """Try really, really hard to get a process's open file descriptors"""
     fd_dir = '/proc/{}/fd'.format(proc.pid)
-    if os.path.isdir(fd_dir):
+    if posixpath.isdir(fd_dir):
         # We're on Linux
         try:
             os.scandir
@@ -19,7 +19,7 @@ def proc_get_open_fds(proc):
             # Python < 3.5
             return [
                 int(fd) for fd in os.listdir(fd_dir)
-                if os.path.islink(os.path.join(fd_dir, fd))
+                if posixpath.islink(posixpath.join(fd_dir, fd))
             ]
         else:
             # Python >= 3.5

@@ -2,6 +2,7 @@
 
 import errno
 import os
+import posixpath
 import resource
 import signal
 import socket
@@ -31,10 +32,10 @@ class Daemon(object):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
-        self.prog = prog if prog is not None else os.path.basename(sys.argv[0])
+        self.prog = prog or posixpath.basename(sys.argv[0])
         self.pidfile = pidfile
         if self.pidfile is not None:
-            self.pidfile = os.path.realpath(self.pidfile)
+            self.pidfile = posixpath.abspath(self.pidfile)
         self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
@@ -80,8 +81,8 @@ class Daemon(object):
         """Create the directory for the PID file if necessary."""
         if self.pidfile is None:
             return
-        piddir = os.path.dirname(self.pidfile)
-        if not os.path.isdir(piddir):
+        piddir = posixpath.dirname(self.pidfile)
+        if not posixpath.isdir(piddir):
             # Create the directory with sensible mode and ownership
             os.makedirs(piddir, 0o777 & ~self.umask)
             os.chown(piddir, self.uid, self.gid)
@@ -91,7 +92,7 @@ class Daemon(object):
         if self.pidfile is None:
             return None
 
-        if not os.path.isfile(self.pidfile):
+        if not posixpath.isfile(self.pidfile):
             return None
 
         # Read the PID file
@@ -265,7 +266,7 @@ class Daemon(object):
     @classmethod
     def _is_in_container(cls):
         """Check if we're running inside a container."""
-        if not os.path.exists('/proc/1/cgroup'):
+        if not posixpath.exists('/proc/1/cgroup'):
             # If not on Linux, just assume we're not in a container
             return False
 

@@ -1,7 +1,8 @@
-from glob import glob
 import os
-from pwd import getpwnam
+import posixpath
 import shutil
+from glob import glob
+from pwd import getpwnam
 
 import psutil
 import pytest
@@ -27,7 +28,7 @@ def test_reset_file_descriptors(pyscript):
                         close_open_files=close_files)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.join(script.dirname, 'foo.pid')
+    pidfile = posixpath.join(script.dirname, 'foo.pid')
 
     script.run('start', '0')
 
@@ -35,7 +36,7 @@ def test_reset_file_descriptors(pyscript):
         proc = psutil.Process(int(f.read()))
 
     assert len(proc_get_open_fds(proc)) >= 5
-    open_files = {os.path.relpath(x.path, script.dirname)
+    open_files = {posixpath.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.txt', 'foo.pid'}
 
@@ -45,7 +46,7 @@ def test_reset_file_descriptors(pyscript):
         proc = psutil.Process(int(f.read()))
 
     assert len(proc_get_open_fds(proc)) == 4
-    open_files = {os.path.relpath(x.path, script.dirname)
+    open_files = {posixpath.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.pid'}
 
@@ -76,25 +77,26 @@ def test_chrootdir(pyscript):
         daemon.do_action('start')
     """)
 
-    chrootdir = os.path.join(script.dirname, 'foo')
+    chrootdir = posixpath.join(script.dirname, 'foo')
     os.makedirs(chrootdir)
-    with open(os.path.join(chrootdir, 'banana'), 'w') as f:
+    with open(posixpath.join(chrootdir, 'banana'), 'w') as f:
         f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
 
     # The chroot messes up coverage
     cov_core_datafile = os.environ.get('COV_CORE_DATAFILE')
     if cov_core_datafile:
-        cov_file_name = os.path.basename(cov_core_datafile)
-        cov_file_dir = os.path.join(chrootdir, script.dirname.lstrip(os.sep))
+        cov_file_name = posixpath.basename(cov_core_datafile)
+        cov_file_dir = posixpath.join(chrootdir, script.dirname.lstrip(os.sep))
         os.makedirs(cov_file_dir)
-        os.environ['COV_CORE_DATAFILE'] = os.path.join(
+        os.environ['COV_CORE_DATAFILE'] = posixpath.join(
             script.dirname, cov_file_name)
 
     result = script.run()
 
     # Move coverage files to expected location
     if cov_core_datafile:
-        for cov_file in glob(os.path.join(cov_file_dir, cov_file_name + '*')):
+        for cov_file in glob(
+                posixpath.join(cov_file_dir, cov_file_name + '*')):
             shutil.move(cov_file, script.dirname)
         os.environ['COV_CORE_DATAFILE'] = cov_core_datafile
 
@@ -131,7 +133,7 @@ def test_uid_and_gid(pyscript):
     result = script.run('start')
     assert result.returncode == 0
 
-    with open(os.path.join(script.dirname, 'foo', 'foo.pid'), 'rb') as f:
+    with open(posixpath.join(script.dirname, 'foo', 'foo.pid'), 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
     uids = proc.uids()
@@ -160,9 +162,9 @@ def test_umask(pyscript):
                         workdir=os.getcwd(), **kwargs)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.join(script.dirname, 'foo.pid')
-    testdir = os.path.join(script.dirname, 'foo')
-    testfile = os.path.join(testdir, 'bar.txt')
+    pidfile = posixpath.join(script.dirname, 'foo.pid')
+    testdir = posixpath.join(script.dirname, 'foo')
+    testfile = posixpath.join(testdir, 'bar.txt')
 
     result = script.run('start')
     assert result.returncode == 0

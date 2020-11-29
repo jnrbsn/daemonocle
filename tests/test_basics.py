@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 import signal
 
@@ -155,12 +156,12 @@ def test_piddir(pyscript):
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo/foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    piddir = os.path.join(script.dirname, 'foo')
+    piddir = posixpath.join(script.dirname, 'foo')
     script.run('start')
-    assert os.path.isdir(piddir)
+    assert posixpath.isdir(piddir)
     assert os.listdir(piddir) == ['foo.pid']
     script.run('stop')
-    assert os.path.isdir(piddir)
+    assert posixpath.isdir(piddir)
     assert os.listdir(piddir) == []
 
 
@@ -176,7 +177,7 @@ def test_broken_pidfile(pyscript):
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
@@ -209,7 +210,7 @@ def test_stale_pidfile(pyscript):
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
@@ -223,7 +224,7 @@ def test_stale_pidfile(pyscript):
     assert result.stdout == b'foo -- not running\n'
     assert result.stderr == b''
 
-    assert not os.path.isfile(pidfile)
+    assert not posixpath.isfile(pidfile)
 
     result = script.run('stop')
     assert result.returncode == 0

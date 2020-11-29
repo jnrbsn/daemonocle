@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 import signal
 
@@ -28,12 +29,12 @@ def test_sys_exit_message(pyscript):
     """)
     script.run()
 
-    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+    with open(posixpath.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
     psutil.Process(pid).wait()
 
-    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+    with open(posixpath.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Exiting with message: goodbye world'
 
 
@@ -59,12 +60,12 @@ def test_uncaught_exception(pyscript):
     """)
     script.run()
 
-    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+    with open(posixpath.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
     psutil.Process(pid).wait()
 
-    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+    with open(posixpath.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Dying due to unhandled ValueError: banana'
 
     script = pyscript("""
@@ -98,7 +99,7 @@ def test_unresponsive_stop(pyscript):
                         stop_timeout=1)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
