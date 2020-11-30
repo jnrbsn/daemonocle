@@ -69,7 +69,7 @@ def proc_get_open_fds(pid=None):
             if p.returncode != 0 or not stdout.strip():
                 raise subprocess.CalledProcessError(
                     returncode=p.returncode, cmd=cmd, output=stdout + stderr)
-        except (OSError, subprocess.CalledProcessError):
+        except Exception:
             # lsof failed for some reason. If this is the current process,
             # try to find any FDs up to 1024 (to be somewhat conservative).
             # If it's not the current process, just fail.
