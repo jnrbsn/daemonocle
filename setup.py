@@ -8,7 +8,7 @@ with open('HISTORY.rst', 'r') as f:
 
 setup(
     name='daemonocle',
-    version='1.1.0-dev',
+    version='1.1.0.dev0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     url='http://github.com/jnrbsn/daemonocle',
@@ -45,6 +45,7 @@ setup(
         'test': [
             'coveralls',
             'flake8',
+            'flake8-isort',
             'pytest',
             'pytest-cov',
         ],

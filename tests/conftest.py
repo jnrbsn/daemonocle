@@ -1,5 +1,6 @@
 import os
 import posixpath
+import re
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,10 @@ from collections import namedtuple
 
 import psutil
 import pytest
+
+BASE_DIR = posixpath.abspath(posixpath.dirname(posixpath.dirname(__file__)))
+
+_re_coverage_filename = re.compile(r'^\.coverage(\..+)?$')
 
 
 def pytest_runtest_setup(item):
@@ -28,13 +33,18 @@ PyScriptResult = namedtuple(
 
 class PyScript(object):
 
-    def __init__(self, code, sudo=False):
+    def __init__(self, code, sudo=False, chrootdir=None):
         self.sudo = sudo
         self.dirname = self._make_temp_dir()
         self.basename = 'script.py'
         self.path = posixpath.join(self.dirname, self.basename)
         with open(self.path, 'wb') as f:
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
+
+        self.chrootdir = chrootdir
+        if self.chrootdir is not None:
+            self.chrootdir = posixpath.normpath(
+                posixpath.join(self.dirname, self.chrootdir))
 
     def _make_temp_dir(self):
         if self.sudo and sys.platform == 'darwin':
@@ -58,13 +68,28 @@ class PyScript(object):
     def run(self, *args):
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
+
+        if self.chrootdir is not None:
+            # The chroot messes up coverage
+            cov_core_datafile = subenv.get('COV_CORE_DATAFILE')
+            if cov_core_datafile:
+                cov_file_name = posixpath.basename(cov_core_datafile)
+                cov_file_dir = posixpath.join(
+                    self.chrootdir, self.dirname.lstrip('/'))
+                if not posixpath.isdir(cov_file_dir):
+                    os.makedirs(cov_file_dir)
+                subenv['COV_CORE_DATAFILE'] = posixpath.join(
+                    self.dirname, cov_file_name)
+
         base_command = [sys.executable, self.path]
         if self.sudo:
             base_command = ['sudo', '-E'] + base_command
+
         proc = subprocess.Popen(
             base_command + list(args), cwd=self.dirname, env=subenv,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
+
         return PyScriptResult(stdout, stderr, proc.pid, proc.returncode)
 
     def teardown(self):
@@ -79,6 +104,17 @@ class PyScript(object):
                 continue
         if psutil.wait_procs(procs, timeout=1)[1]:
             raise OSError('Failed to terminate subprocesses')
+
+        coverage_files = []
+        for dirpath, dirnames, filenames in os.walk(self.dirname):
+            for filename in filenames:
+                if not _re_coverage_filename.match(filename):
+                    continue
+                coverage_files.append(posixpath.join(dirpath, filename))
+
+        for coverage_file in coverage_files:
+            shutil.move(coverage_file, BASE_DIR)
+
         shutil.rmtree(self.dirname)
 
 
@@ -88,8 +124,8 @@ def pyscript(request):
 
     needs_sudo = request.node.get_closest_marker('sudo') is not None
 
-    def factory(code):
-        pf = PyScript(code, sudo=needs_sudo)
+    def factory(code, chrootdir=None):
+        pf = PyScript(code, sudo=needs_sudo, chrootdir=chrootdir)
         pfs.append(pf)
         return pf
 

@@ -3,6 +3,7 @@ import posixpath
 import re
 import signal
 
+import psutil
 import pytest
 
 from daemonocle import Daemon, DaemonError
@@ -230,6 +231,47 @@ def test_stale_pidfile(pyscript):
     assert result.returncode == 0
     assert result.stdout == b''
     assert result.stderr == b'WARNING: foo is not running\n'
+
+
+def test_stdout_and_stderr_file(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stdout.write('1ohhyMgprGBsSgPF7R388fs1VYtF3UyxCzp\\n')
+            sys.stdout.flush()
+            sys.stderr.write('1PMQcUFXReMo8V4jRK8sRkixpGm6TVb1KJJ\\n')
+            sys.stderr.flush()
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        stdout_file='stdout.log', stderr_file='stderr.log')
+        daemon.do_action(sys.argv[1])
+    """)
+    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... OK\n'
+        assert result.stderr == b''
+
+        with open(pidfile, 'rb') as f:
+            proc = psutil.Process(int(f.read()))
+
+        assert proc.status() == psutil.STATUS_SLEEPING
+
+        with open(posixpath.join(script.dirname, 'stdout.log'), 'rb') as f:
+            assert f.read() == b'1ohhyMgprGBsSgPF7R388fs1VYtF3UyxCzp\n'
+        with open(posixpath.join(script.dirname, 'stderr.log'), 'rb') as f:
+            assert f.read() == b'1PMQcUFXReMo8V4jRK8sRkixpGm6TVb1KJJ\n'
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo ... OK\n'
+        assert result.stderr == b''
 
 
 def test_status_uptime(pyscript):

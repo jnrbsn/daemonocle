@@ -13,7 +13,8 @@ import time
 import psutil
 
 from .exceptions import DaemonError
-from .utils import proc_get_open_fds
+from .utils import (
+    check_dir_exists, chroot_path, proc_get_open_fds, unchroot_path)
 
 
 def expose_action(func):
@@ -28,14 +29,13 @@ class Daemon(object):
     def __init__(
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None,
             detach=True, uid=None, gid=None, workdir='/', chrootdir=None,
-            umask=0o22, stop_timeout=10, close_open_files=False):
+            umask=0o22, stop_timeout=10, close_open_files=False,
+            stdout_file=None, stderr_file=None):
         """Create a new Daemon object."""
         self.worker = worker
         self.shutdown_callback = shutdown_callback
         self.prog = prog or posixpath.basename(sys.argv[0])
         self.pidfile = pidfile
-        if self.pidfile is not None:
-            self.pidfile = posixpath.abspath(self.pidfile)
         self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
         self.gid = gid if gid is not None else os.getgid()
@@ -44,6 +44,29 @@ class Daemon(object):
         self.umask = umask
         self.stop_timeout = stop_timeout
         self.close_open_files = close_open_files
+        self.stdout_file = stdout_file
+        self.stderr_file = stderr_file
+
+        if self.chrootdir is not None:
+            self.chrootdir = posixpath.abspath(self.chrootdir)
+            check_dir_exists(self.chrootdir)
+
+            self.workdir = (
+                unchroot_path(self.workdir, self.chrootdir)
+                if self.workdir else self.chrootdir)
+
+            for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+                path = getattr(self, attr)
+                setattr(self, attr, (
+                    unchroot_path(path, self.chrootdir) if path else None))
+        else:
+            self.workdir = posixpath.abspath(self.workdir)
+            for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+                path = getattr(self, attr)
+                if path is not None:
+                    setattr(self, attr, posixpath.abspath(path))
+
+        check_dir_exists(self.workdir)
 
         self._pid_fd = None
         self._shutdown_complete = False
@@ -77,15 +100,17 @@ class Daemon(object):
         sys.stderr.write('WARNING: {message}\n'.format(message=message))
         sys.stderr.flush()
 
-    def _setup_piddir(self):
-        """Create the directory for the PID file if necessary."""
-        if self.pidfile is None:
-            return
-        piddir = posixpath.dirname(self.pidfile)
-        if not posixpath.isdir(piddir):
-            # Create the directory with sensible mode and ownership
-            os.makedirs(piddir, 0o777 & ~self.umask)
-            os.chown(piddir, self.uid, self.gid)
+    def _setup_dirs(self):
+        """Create the various directories if necessary."""
+        for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+            file_path = getattr(self, attr)
+            if file_path is None:
+                continue
+            dir_path = posixpath.dirname(file_path)
+            if not posixpath.isdir(dir_path):
+                # Create the directory with sensible mode and ownership
+                os.makedirs(dir_path, 0o777 & ~self.umask)
+                os.chown(dir_path, self.uid, self.gid)
 
     def _read_pidfile(self):
         """Read the PID file and check to make sure it's not stale."""
@@ -126,7 +151,7 @@ class Daemon(object):
         except AttributeError:
             pass
         self._pid_fd = os.open(self.pidfile, flags, 0o666 & ~self.umask)
-        os.write(self._pid_fd, str(os.getpid()).encode('utf-8'))
+        os.write(self._pid_fd, b'%d\n' % os.getpid())
 
     def _close_pidfile(self):
         """Closes and removes the PID file."""
@@ -165,6 +190,13 @@ class Daemon(object):
             except Exception as ex:
                 raise DaemonError('Unable to change root directory '
                                   '({error})'.format(error=str(ex)))
+            else:
+                self.workdir = chroot_path(self.workdir, self.chrootdir)
+                for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+                    path = getattr(self, attr)
+                    if path is None:
+                        continue
+                    setattr(self, attr, chroot_path(path, self.chrootdir))
 
         # Prevent the process from generating a core dump
         self._prevent_core_dump()
@@ -176,8 +208,8 @@ class Daemon(object):
             raise DaemonError('Unable to change working directory '
                               '({error})'.format(error=str(ex)))
 
-        # Create the directory for the pid file if necessary
-        self._setup_piddir()
+        # Create the various directories if necessary
+        self._setup_dirs()
 
         try:
             # Set file creation mask
@@ -194,18 +226,69 @@ class Daemon(object):
             raise DaemonError('Unable to setuid or setgid '
                               '({error})'.format(error=str(ex)))
 
-    def _reset_file_descriptors(self):
-        """Close open file descriptors and redirect standard streams."""
+    def _redirect_std_streams(self):
+        """Redirect STDOUT and STDERR, and close STDIN"""
+        # Close STDIN
+        sys.stdin.close()
+        try:
+            os.close(0)
+        except OSError as e:
+            if e.errno != errno.EBADF:
+                # It's already closed
+                raise
+
         # Flush buffers
         sys.stdout.flush()
         sys.stderr.flush()
 
-        # Redirect STDIN, STDOUT, and STDERR to /dev/null
-        devnull_fd = os.open(os.devnull, os.O_RDWR)
-        os.dup2(devnull_fd, 0)
-        os.dup2(devnull_fd, 1)
-        os.dup2(devnull_fd, 2)
-        os.close(devnull_fd)
+        # Redirect STDOUT and STDERR
+        stdout_file_fd = None
+        stderr_file_fd = None
+
+        flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+        mode = 0o666 & ~self.umask
+
+        if self.stdout_file is not None:
+            stdout_file_fd = os.open(self.stdout_file, flags, mode)
+            os.dup2(stdout_file_fd, 1)
+
+        if self.stderr_file is not None:
+            if self.stdout_file == self.stderr_file:
+                # STDOUT and STDERR are going to the same place
+                stderr_file_fd = stdout_file_fd
+            else:
+                stderr_file_fd = os.open(self.stderr_file, flags, mode)
+            os.dup2(stderr_file_fd, 2)
+
+        # Close the original FDs that we duplicated to FDs 1 and 2
+        if stdout_file_fd is not None:
+            os.close(stdout_file_fd)
+        if stderr_file_fd is not None and stdout_file_fd != stderr_file_fd:
+            os.close(stderr_file_fd)
+
+        if self.stdout_file is None or self.stderr_file is None:
+            try:
+                devnull_fd = os.open(os.devnull, os.O_RDWR)
+            except OSError as e:
+                if e.errno == errno.ENOENT:
+                    # If we're in a chroot jail, /dev/null might not exist
+                    raise DaemonError((
+                        '"stdout_file" and "stderr_file" must be provided '
+                        'when "{devnull}" doesn\'t exist '
+                        '(e.g. in a chroot jail)'
+                    ).format(devnull=os.devnull))
+                raise
+            # If we haven't redirected STDOUT and/or STDERR elsewhere,
+            # redirect them to /dev/null
+            if self.stdout_file is None:
+                os.dup2(devnull_fd, 1)
+            if self.stderr_file is None:
+                os.dup2(devnull_fd, 2)
+            os.close(devnull_fd)
+
+    def _reset_file_descriptors(self):
+        """Close open file descriptors and redirect standard streams."""
+        self._redirect_std_streams()
 
         if self.close_open_files:
             # Close all open files except the standard streams and the

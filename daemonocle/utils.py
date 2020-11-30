@@ -8,13 +8,37 @@ _re_whitespace = re.compile(br'\s+')
 _re_non_digits = re.compile(br'[^\d]+')
 
 
+def check_dir_exists(path):
+    """Check if a directory exists and raise OSError if it doesn't"""
+    if not posixpath.exists(path):
+        raise OSError(errno.ENOENT, 'No such file or directory', path)
+    elif not posixpath.isdir(path):
+        raise OSError(errno.ENOTDIR, 'Not a directory', path)
+
+
+def chroot_path(path, chrootdir):
+    """Convert the given non-chroot-relative path into an absolute path
+    _inside_ the given chroot directory"""
+    path = posixpath.abspath(path)
+    chrootdir = posixpath.abspath(chrootdir)
+    return posixpath.normpath(
+        posixpath.join('/', posixpath.relpath(path, chrootdir)))
+
+
+def unchroot_path(path, chrootdir):
+    """Convert the given chroot-relative path into an absolute path
+    _outside_ the given chroot directory"""
+    chrootdir = posixpath.abspath(chrootdir)
+    return posixpath.normpath(posixpath.join(chrootdir, path.lstrip('/')))
+
+
 def proc_get_open_fds(pid=None):
     """Try really, really hard to get a process's open file descriptors"""
     pid = pid or os.getpid()
 
     fd_dir = '/proc/{}/fd'.format(pid)
-    if posixpath.isdir(fd_dir):
-        # We're on Linux
+    try:
+        # Try /proc on Linux first
         try:
             os.scandir
         except AttributeError:
@@ -29,8 +53,11 @@ def proc_get_open_fds(pid=None):
                 int(e.name) for e in os.scandir(fd_dir)
                 if os.readlink(e.path) != fd_dir
             ]
-    else:
-        # Not Linux (maybe macOS?)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+
+        # We're not on Linux (maybe macOS?)
         try:
             # Try getting FDs from lsof
             cmd = ['lsof', '-a', '-d0-65535', '-p', str(pid)]
@@ -39,12 +66,18 @@ def proc_get_open_fds(pid=None):
             # We'll obviously need to exclude these below
             exclude_fds = {p.stdout.fileno(), p.stderr.fileno()}
             stdout, stderr = p.communicate()
-            if p.returncode != 0:
+            if p.returncode != 0 or not stdout.strip():
                 raise subprocess.CalledProcessError(
                     returncode=p.returncode, cmd=cmd, output=stdout + stderr)
         except (OSError, subprocess.CalledProcessError):
-            # lsof failed for some reason. We don't really care why.
-            # Just try to find any FDs up to 1024 to be somewhat conservative.
+            # lsof failed for some reason. If this is the current process,
+            # try to find any FDs up to 1024 (to be somewhat conservative).
+            # If it's not the current process, just fail.
+            if pid != os.getpid():
+                raise RuntimeError(
+                    'Unable to get open file descriptors using the "/proc" '
+                    'filesystem or the "lsof" command')
+
             fds = []
             for fd in range(1024):
                 try:

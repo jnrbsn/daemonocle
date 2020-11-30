@@ -1,7 +1,5 @@
 import os
 import posixpath
-import shutil
-from glob import glob
 from pwd import getpwnam
 
 import psutil
@@ -45,7 +43,7 @@ def test_reset_file_descriptors(pyscript):
     with open(pidfile, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
-    assert len(proc_get_open_fds(proc.pid)) == 4
+    assert len(proc_get_open_fds(proc.pid)) == 3
     open_files = {posixpath.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.pid'}
@@ -75,33 +73,66 @@ def test_chrootdir(pyscript):
         daemon = Daemon(worker=worker, prog='foo', detach=False,
                         chrootdir=os.path.join(os.getcwd(), 'foo'))
         daemon.do_action('start')
-    """)
+    """, chrootdir='foo')
 
     chrootdir = posixpath.join(script.dirname, 'foo')
+
     os.makedirs(chrootdir)
     with open(posixpath.join(chrootdir, 'banana'), 'w') as f:
         f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
 
-    # The chroot messes up coverage
-    cov_core_datafile = os.environ.get('COV_CORE_DATAFILE')
-    if cov_core_datafile:
-        cov_file_name = posixpath.basename(cov_core_datafile)
-        cov_file_dir = posixpath.join(chrootdir, script.dirname.lstrip(os.sep))
-        os.makedirs(cov_file_dir)
-        os.environ['COV_CORE_DATAFILE'] = posixpath.join(
-            script.dirname, cov_file_name)
-
     result = script.run()
-
-    # Move coverage files to expected location
-    if cov_core_datafile:
-        for cov_file in glob(
-                posixpath.join(cov_file_dir, cov_file_name + '*')):
-            shutil.move(cov_file, script.dirname)
-        os.environ['COV_CORE_DATAFILE'] = cov_core_datafile
 
     assert result.returncode == 0
     assert result.stderr == b'pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
+
+
+@pytest.mark.sudo
+def test_chrootdir_with_various_file_handling(pyscript):
+    # FIXME: This scenario doesn't completely work as expected, but this
+    # test is here just to make sure it doesn't completely fail.
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stdout.write('1hkCD5JwzzWzB2t5qnWg3FyZs8eaST8NYr4\\n')
+            sys.stdout.flush()
+            sys.stderr.write('2JQkKPfp6NFW5NmJiCKXeyJ4iCkHfwBs5Vp\\n')
+            sys.stderr.flush()
+            time.sleep(10)
+
+        open_file = open('foo.txt', 'w+')
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        chrootdir=os.getcwd(), close_open_files=True,
+                        stdout_file='stdout.log', stderr_file='stderr.log')
+        daemon.do_action(sys.argv[1])
+    """, chrootdir='.')
+
+    pidfile = posixpath.join(script.dirname, 'foo.pid')
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... OK\n'
+        assert result.stderr == b''
+
+        with open(pidfile, 'rb') as f:
+            proc = psutil.Process(int(f.read()))
+
+        assert proc.status() == psutil.STATUS_SLEEPING
+
+        with open(posixpath.join(script.dirname, 'stdout.log'), 'rb') as f:
+            assert f.read() == b'1hkCD5JwzzWzB2t5qnWg3FyZs8eaST8NYr4\n'
+        with open(posixpath.join(script.dirname, 'stderr.log'), 'rb') as f:
+            assert f.read() == b'2JQkKPfp6NFW5NmJiCKXeyJ4iCkHfwBs5Vp\n'
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo ... OK\n'
+        assert result.stderr == b''
 
 
 def test_uid_and_gid_without_permission():
