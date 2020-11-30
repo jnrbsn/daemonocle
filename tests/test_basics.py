@@ -178,7 +178,7 @@ def test_broken_pidfile(pyscript):
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
@@ -211,7 +211,7 @@ def test_stale_pidfile(pyscript):
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
@@ -250,7 +250,7 @@ def test_stdout_and_stderr_file(pyscript):
                         stdout_file='stdout.log', stderr_file='stderr.log')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     result = script.run('start')
     try:

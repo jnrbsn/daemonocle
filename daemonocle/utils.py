@@ -19,8 +19,8 @@ def check_dir_exists(path):
 def chroot_path(path, chrootdir):
     """Convert the given non-chroot-relative path into an absolute path
     _inside_ the given chroot directory"""
-    path = posixpath.abspath(path)
-    chrootdir = posixpath.abspath(chrootdir)
+    path = posixpath.realpath(path)
+    chrootdir = posixpath.realpath(chrootdir)
     return posixpath.normpath(
         posixpath.join('/', posixpath.relpath(path, chrootdir)))
 
@@ -28,7 +28,7 @@ def chroot_path(path, chrootdir):
 def unchroot_path(path, chrootdir):
     """Convert the given chroot-relative path into an absolute path
     _outside_ the given chroot directory"""
-    chrootdir = posixpath.abspath(chrootdir)
+    chrootdir = posixpath.realpath(chrootdir)
     return posixpath.normpath(posixpath.join(chrootdir, path.lstrip('/')))
 
 

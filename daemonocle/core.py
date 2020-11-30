@@ -48,7 +48,7 @@ class Daemon(object):
         self.stderr_file = stderr_file
 
         if self.chrootdir is not None:
-            self.chrootdir = posixpath.abspath(self.chrootdir)
+            self.chrootdir = posixpath.realpath(self.chrootdir)
             check_dir_exists(self.chrootdir)
 
             self.workdir = (
@@ -60,11 +60,11 @@ class Daemon(object):
                 setattr(self, attr, (
                     unchroot_path(path, self.chrootdir) if path else None))
         else:
-            self.workdir = posixpath.abspath(self.workdir)
+            self.workdir = posixpath.realpath(self.workdir)
             for attr in ('pidfile', 'stdout_file', 'stderr_file'):
                 path = getattr(self, attr)
                 if path is not None:
-                    setattr(self, attr, posixpath.abspath(path))
+                    setattr(self, attr, posixpath.realpath(path))
 
         check_dir_exists(self.workdir)
 

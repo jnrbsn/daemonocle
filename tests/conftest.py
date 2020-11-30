@@ -11,7 +11,7 @@ from collections import namedtuple
 import psutil
 import pytest
 
-BASE_DIR = posixpath.abspath(posixpath.dirname(posixpath.dirname(__file__)))
+BASE_DIR = posixpath.realpath(posixpath.dirname(posixpath.dirname(__file__)))
 
 _re_coverage_filename = re.compile(r'^\.coverage(\..+)?$')
 
@@ -58,7 +58,7 @@ class PyScript(object):
         else:
             base_temp_dir = tempfile.gettempdir()
 
-        temp_dir = posixpath.abspath(
+        temp_dir = posixpath.realpath(
             tempfile.mkdtemp(prefix='daemonocle_pytest_', dir=base_temp_dir))
         # This chmod is necessary for the setuid/setgid tests
         os.chmod(temp_dir, 0o711)

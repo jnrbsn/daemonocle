@@ -99,7 +99,7 @@ def test_unresponsive_stop(pyscript):
                         stop_timeout=1)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.abspath(posixpath.join(script.dirname, 'foo.pid'))
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
