@@ -45,7 +45,7 @@ setup(
         'test': [
             'coveralls',
             'flake8',
-            'flake8-isort',
+            'flake8-isort; python_version>="3.6"',
             'pytest',
             'pytest-cov',
         ],
