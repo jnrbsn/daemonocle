@@ -122,7 +122,7 @@ def test_chrootdir_with_various_file_handling(pyscript):
         with open(pidfile, 'rb') as f:
             proc = psutil.Process(int(f.read()))
 
-        assert proc.status() == psutil.STATUS_SLEEPING
+        assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
 
         with open(posixpath.join(script.dirname, 'stdout.log'), 'rb') as f:
             assert f.read() == b'1hkCD5JwzzWzB2t5qnWg3FyZs8eaST8NYr4\n'

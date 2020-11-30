@@ -261,7 +261,7 @@ def test_stdout_and_stderr_file(pyscript):
         with open(pidfile, 'rb') as f:
             proc = psutil.Process(int(f.read()))
 
-        assert proc.status() == psutil.STATUS_SLEEPING
+        assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
 
         with open(posixpath.join(script.dirname, 'stdout.log'), 'rb') as f:
             assert f.read() == b'1ohhyMgprGBsSgPF7R388fs1VYtF3UyxCzp\n'
