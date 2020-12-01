@@ -1,4 +1,3 @@
-import errno
 import os
 import posixpath
 from pwd import getpwnam
@@ -8,6 +7,7 @@ import pytest
 
 from daemonocle import Daemon, DaemonError
 from daemonocle._utils import proc_get_open_fds
+from daemonocle.exceptions import DaemonEnvironmentError
 
 
 def test_reset_file_descriptors(pyscript):
@@ -130,9 +130,9 @@ def test_chrootdir_with_various_file_handling(pyscript):
         with open(posixpath.join(script.dirname, 'stderr.log'), 'rb') as f:
             assert f.read() == b'2JQkKPfp6NFW5NmJiCKXeyJ4iCkHfwBs5Vp\n'
 
-        with pytest.raises(OSError) as exc_info:
+        with pytest.raises(DaemonEnvironmentError) as exc_info:
             proc_get_open_fds(proc.pid)
-        assert exc_info.value.errno == errno.EACCES
+        assert 'Unable to get open file descriptors' in str(exc_info.value)
     finally:
         result = script.run('stop')
         assert result.returncode == 0

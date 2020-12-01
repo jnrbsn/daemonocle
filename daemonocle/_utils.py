@@ -4,6 +4,8 @@ import posixpath
 import re
 import subprocess
 
+from .exceptions import DaemonEnvironmentError
+
 _re_whitespace = re.compile(br'\s+')
 _re_non_digits = re.compile(br'[^\d]+')
 
@@ -55,7 +57,9 @@ def proc_get_open_fds(pid=None):
             ]
     except OSError as e:
         if e.errno != errno.ENOENT:
-            raise
+            raise DaemonEnvironmentError(
+                'Unable to get open file descriptors using "/proc/<pid>/fd" '
+                '({error})'.format(error=str(e)))
 
         # We're not on Linux (maybe macOS?)
         try:
@@ -69,14 +73,14 @@ def proc_get_open_fds(pid=None):
             if p.returncode != 0 or not stdout.strip():
                 raise subprocess.CalledProcessError(
                     returncode=p.returncode, cmd=cmd, output=stdout + stderr)
-        except Exception:
+        except Exception as e:
             # lsof failed for some reason. If this is the current process,
             # try to find any FDs up to 1024 (to be somewhat conservative).
             # If it's not the current process, just fail.
             if pid != os.getpid():
-                raise RuntimeError(
-                    'Unable to get open file descriptors using the "/proc" '
-                    'filesystem or the "lsof" command')
+                raise DaemonEnvironmentError(
+                    'Unable to get open file descriptors using "lsof" '
+                    '({error})'.format(error=str(e)))
 
             fds = []
             for fd in range(1024):
