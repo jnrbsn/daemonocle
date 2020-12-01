@@ -1,3 +1,4 @@
+import errno
 import os
 import posixpath
 from pwd import getpwnam
@@ -53,10 +54,10 @@ def test_reset_file_descriptors(pyscript):
 
 def test_chrootdir_without_permission():
     daemon = Daemon(worker=lambda: None, chrootdir=os.getcwd())
-    with pytest.raises(DaemonError) as excinfo:
+    with pytest.raises(DaemonError) as exc_info:
         daemon.do_action('start')
     assert ('Unable to change root directory '
-            '([Errno 1] Operation not permitted') in str(excinfo.value)
+            '([Errno 1] Operation not permitted') in str(exc_info.value)
 
 
 @pytest.mark.sudo
@@ -128,6 +129,10 @@ def test_chrootdir_with_various_file_handling(pyscript):
             assert f.read() == b'1hkCD5JwzzWzB2t5qnWg3FyZs8eaST8NYr4\n'
         with open(posixpath.join(script.dirname, 'stderr.log'), 'rb') as f:
             assert f.read() == b'2JQkKPfp6NFW5NmJiCKXeyJ4iCkHfwBs5Vp\n'
+
+        with pytest.raises(OSError) as exc_info:
+            proc_get_open_fds(proc.pid)
+        assert exc_info.value.errno == errno.EACCES
     finally:
         result = script.run('stop')
         assert result.returncode == 0
@@ -138,10 +143,10 @@ def test_chrootdir_with_various_file_handling(pyscript):
 def test_uid_and_gid_without_permission():
     nobody = getpwnam('nobody')
     daemon = Daemon(worker=lambda: None, uid=nobody.pw_uid, gid=nobody.pw_gid)
-    with pytest.raises(DaemonError) as excinfo:
+    with pytest.raises(DaemonError) as exc_info:
         daemon.do_action('start')
     assert ('Unable to setuid or setgid '
-            '([Errno 1] Operation not permitted') in str(excinfo.value)
+            '([Errno 1] Operation not permitted') in str(exc_info.value)
 
 
 @pytest.mark.sudo
