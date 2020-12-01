@@ -12,9 +12,9 @@ import time
 
 import psutil
 
-from .exceptions import DaemonError
 from ._utils import (
     check_dir_exists, chroot_path, proc_get_open_fds, unchroot_path)
+from .exceptions import DaemonError
 
 
 def expose_action(func):
