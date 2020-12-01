@@ -5,8 +5,27 @@ import subprocess
 
 import pytest
 
-from daemonocle._utils import proc_get_open_fds
+from daemonocle._utils import check_dir_exists, proc_get_open_fds
 from daemonocle.exceptions import DaemonEnvironmentError
+
+
+def test_check_dir_exists(temp_dir):
+    test_dir = posixpath.join(temp_dir, 'foo')
+    os.mkdir(test_dir)
+    check_dir_exists(test_dir)
+
+    with pytest.raises(OSError) as exc_info:
+        check_dir_exists(posixpath.join(temp_dir, 'baz'))
+    assert exc_info.value.errno == errno.ENOENT
+    assert 'No such file or directory' in str(exc_info.value)
+
+    test_file = posixpath.join(temp_dir, 'bar')
+    with open(test_file, 'w') as f:
+        f.write('bar\n')
+    with pytest.raises(OSError) as exc_info:
+        check_dir_exists(test_file)
+    assert exc_info.value.errno == errno.ENOTDIR
+    assert 'Not a directory' in str(exc_info.value)
 
 
 def test_proc_get_open_fds_fallbacks_current_proc(temp_dir, monkeypatch):
