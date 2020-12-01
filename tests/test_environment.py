@@ -6,7 +6,7 @@ import psutil
 import pytest
 
 from daemonocle import Daemon, DaemonError
-from daemonocle.utils import proc_get_open_fds
+from daemonocle._utils import proc_get_open_fds
 
 
 def test_reset_file_descriptors(pyscript):

@@ -13,7 +13,7 @@ import time
 import psutil
 
 from .exceptions import DaemonError
-from .utils import (
+from ._utils import (
     check_dir_exists, chroot_path, proc_get_open_fds, unchroot_path)
 
 
