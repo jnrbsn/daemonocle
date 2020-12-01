@@ -27,6 +27,40 @@ def pytest_runtest_setup(item):
             pytest.skip('must be able to run sudo without a password')
 
 
+def _make_temp_dir(needs_sudo=False):
+    if needs_sudo and sys.platform == 'darwin':
+        # macOS has user-specific TMPDIRs, which don't work well
+        # with tests that require changing users. So this gets a
+        # global multi-user TMPDIR by using sudo.
+        base_temp_dir = subprocess.check_output([
+            'sudo', sys.executable, '-c',
+            'import tempfile as t; print(t.gettempdir())',
+        ]).decode('utf-8').strip()
+    else:
+        base_temp_dir = tempfile.gettempdir()
+
+    temp_dir = posixpath.realpath(
+        tempfile.mkdtemp(prefix='daemonocle_pytest_', dir=base_temp_dir))
+    # This chmod is necessary for the setuid/setgid tests
+    os.chmod(temp_dir, 0o711)
+
+    return temp_dir
+
+
+@pytest.fixture(scope='function')
+def temp_dir(request):
+    needs_sudo = request.node.get_closest_marker('sudo') is not None
+
+    path = _make_temp_dir(needs_sudo=needs_sudo)
+
+    def teardown():
+        shutil.rmtree(path)
+
+    request.addfinalizer(teardown)
+
+    return path
+
+
 PyScriptResult = namedtuple(
     'PyScriptResult', ['stdout', 'stderr', 'pid', 'returncode'])
 
@@ -35,7 +69,7 @@ class PyScript(object):
 
     def __init__(self, code, sudo=False, chrootdir=None):
         self.sudo = sudo
-        self.dirname = self._make_temp_dir()
+        self.dirname = _make_temp_dir(needs_sudo=sudo)
         self.basename = 'script.py'
         self.path = posixpath.join(self.dirname, self.basename)
         with open(self.path, 'wb') as f:
@@ -45,25 +79,6 @@ class PyScript(object):
         if self.chrootdir is not None:
             self.chrootdir = posixpath.normpath(
                 posixpath.join(self.dirname, self.chrootdir))
-
-    def _make_temp_dir(self):
-        if self.sudo and sys.platform == 'darwin':
-            # macOS has user-specific TMPDIRs, which don't work well
-            # with tests that require changing users. So this gets a
-            # global multi-user TMPDIR by using sudo.
-            base_temp_dir = subprocess.check_output([
-                'sudo', sys.executable, '-c',
-                'import tempfile as t; print(t.gettempdir())',
-            ]).decode('utf-8').strip()
-        else:
-            base_temp_dir = tempfile.gettempdir()
-
-        temp_dir = posixpath.realpath(
-            tempfile.mkdtemp(prefix='daemonocle_pytest_', dir=base_temp_dir))
-        # This chmod is necessary for the setuid/setgid tests
-        os.chmod(temp_dir, 0o711)
-
-        return temp_dir
 
     def run(self, *args):
         subenv = os.environ.copy()
