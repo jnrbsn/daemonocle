@@ -17,7 +17,8 @@ def test_proc_get_open_fds_fallbacks_current_proc(temp_dir, monkeypatch):
         raise OSError(errno.ENOENT, 'No such file or directory', path)
 
     monkeypatch.setattr(os, 'listdir', mock_os_listdir_scandir)
-    monkeypatch.setattr(os, 'scandir', mock_os_listdir_scandir)
+    if hasattr(os, 'scandir'):
+        monkeypatch.setattr(os, 'scandir', mock_os_listdir_scandir)
 
     # Simulating not being able to read "/proc/<pid>/fd"
     result_2 = proc_get_open_fds()
@@ -52,7 +53,8 @@ def test_proc_get_open_fds_fallbacks_other_proc(temp_dir, monkeypatch):
             raise OSError(errno.ENOENT, 'No such file or directory', path)
 
         monkeypatch.setattr(os, 'listdir', mock_os_listdir_scandir)
-        monkeypatch.setattr(os, 'scandir', mock_os_listdir_scandir)
+        if hasattr(os, 'scandir'):
+            monkeypatch.setattr(os, 'scandir', mock_os_listdir_scandir)
 
         # Simulating not being able to read "/proc/<pid>/fd"
         result_2 = proc_get_open_fds(pid)
