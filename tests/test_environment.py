@@ -105,10 +105,10 @@ def test_chrootdir_with_various_file_handling(pyscript):
             sys.stderr.flush()
             time.sleep(10)
 
-        open_file = open('foo.txt', 'w+')
         daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
-                        chrootdir=os.getcwd(), close_open_files=True,
-                        stdout_file='stdout.log', stderr_file='stderr.log')
+                        detach=True, chrootdir=os.getcwd(),
+                        close_open_files=True, stdout_file='stdout.log',
+                        stderr_file='stderr.log')
         daemon.do_action(sys.argv[1])
     """, chrootdir='.')
 
@@ -138,6 +138,37 @@ def test_chrootdir_with_various_file_handling(pyscript):
         assert result.returncode == 0
         assert result.stdout == b'Stopping foo ... OK\n'
         assert result.stderr == b''
+
+
+@pytest.mark.sudo
+def test_chrootdir_detach_no_output_files(pyscript):
+    script = pyscript("""
+        import os
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+                        detach=True, chrootdir=os.getcwd())
+        daemon.do_action(sys.argv[1])
+    """, chrootdir='.')
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... FAILED\n'
+        assert (b'"stdout_file" and "stderr_file" must be provided'
+                in result.stderr)
+        assert (b'ERROR: Child exited immediately with exit code'
+                in result.stderr)
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b''
+        assert result.stderr == b'WARNING: foo is not running\n'
 
 
 def test_uid_and_gid_without_permission():
