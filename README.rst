@@ -373,6 +373,14 @@ And here are descriptions of all the arguments:
 **close_open_files**
     Whether or not to close all open files when the daemon detaches. Default: ``False``
 
+**stdout_file**
+    If provided when ``detach=True``, the STDOUT stream will be redirected (appended) to the file
+    at the given path. In non-detached mode, this argument is ignored.
+
+**stderr_file**
+    If provided when ``detach=True``, the STDERR stream will be redirected (appended) to the file
+    at the given path. In non-detached mode, this argument is ignored.
+
 Actions
 ~~~~~~~
 

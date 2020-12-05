@@ -13,6 +13,12 @@ v1.1.0 (not yet released)
   read it.
 * All tests now pass on macOS (Intel) and the GitHub Actions build now runs on
   macOS 10.15 in addition to Ubuntu.
+* STDIN is now closed in detached mode instead of attached to ``/dev/null``.
+* Added ``stdout_file`` and ``stderr_file`` arguments to ``Daemon``. If these
+  arguments are provided when ``detach=True``, STDOUT and STDERR will be
+  redirected to these files. In non-detached mode, these arguments are ignored.
+* When ``chrootdir`` is given, all other paths are now always considered
+  relative to the chroot directory, even with a leading slash.
 
 v1.0.2 (2020-07-12)
 ~~~~~~~~~~~~~~~~~~~
