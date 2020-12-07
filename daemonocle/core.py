@@ -705,7 +705,7 @@ class Daemon(object):
         # have been exposed
         for func_name in dir(cls):
             func = getattr(cls, func_name)
-            if (not hasattr(func, '__call__') or
+            if (not callable(func) or
                     not getattr(func, '__daemonocle_exposed__', False)):
                 # Not a function or not exposed
                 continue
@@ -724,8 +724,8 @@ class Daemon(object):
                 'Invalid action "{action}"'.format(action=action))
 
         func = getattr(self, func_name)
-        if (not hasattr(func, '__call__') or
-                getattr(func, '__daemonocle_exposed__', False) is not True):
+        if (not callable(func) or
+                not getattr(func, '__daemonocle_exposed__', False)):
             # Not a function or not exposed
             raise DaemonError(
                 'Invalid action "{action}"'.format(action=action))
