@@ -3,7 +3,6 @@ import posixpath
 import re
 import time
 
-
 timer = getattr(time, 'monotonic', time.time)
 
 
