@@ -9,11 +9,13 @@ import socket
 import subprocess
 import sys
 import time
+from math import fsum
 
 import psutil
 
 from ._utils import (
-    check_dir_exists, chroot_path, proc_get_open_fds, unchroot_path)
+    check_dir_exists, chroot_path, format_elapsed_time, get_proc_group_info,
+    json_encode, proc_get_open_fds, unchroot_path)
 from .exceptions import DaemonError
 
 
@@ -521,11 +523,11 @@ class Daemon(object):
             name=signal_names[signal_number], number=signal_number)
         self._shutdown(message, code=128+signal_number)
 
-    def _run(self):
+    def _run(self, *args, **kwargs):
         """Run the worker function with some custom exception handling."""
         try:
             # Run the worker
-            self.worker()
+            self.worker(*args, **kwargs)
         except SystemExit as ex:
             # sys.exit() was called
             if isinstance(ex.code, int):
@@ -550,10 +552,13 @@ class Daemon(object):
         self._shutdown('Shutting down normally')
 
     @expose_action
-    def start(self):
+    def start(self, debug=False, *args, **kwargs):
         """Start the daemon."""
         if self.worker is None:
             raise DaemonError('No worker is defined for daemon')
+
+        if debug:
+            self.detach = False
 
         if os.environ.get('DAEMONOCLE_RELOAD'):
             # If this is actually a reload, we need to wait for the
@@ -593,8 +598,6 @@ class Daemon(object):
 
         if self.detach:
             self._detach_process()
-        else:
-            self._emit_ok()
 
         if self.pidfile is not None:
             self._write_pidfile()
@@ -604,10 +607,13 @@ class Daemon(object):
         signal.signal(signal.SIGQUIT, self._handle_terminate)
         signal.signal(signal.SIGTERM, self._handle_terminate)
 
-        self._run()
+        if not self.detach:
+            self._emit_ok()
+
+        self._run(*args, **kwargs)
 
     @expose_action
-    def stop(self):
+    def stop(self, timeout=None, force=False):
         """Stop the daemon."""
         if self.pidfile is None:
             raise DaemonError('Cannot stop daemon without PID file')
@@ -617,6 +623,8 @@ class Daemon(object):
             # I don't think this should be a fatal error
             self._emit_warning('{prog} is not running'.format(prog=self.prog))
             return
+
+        timeout = timeout or self.stop_timeout
 
         self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
 
@@ -628,72 +636,108 @@ class Daemon(object):
             self._emit_error(str(ex))
             sys.exit(1)
 
-        if self._pid_is_alive(pid, timeout=self.stop_timeout):
-            # The process didn't terminate for some reason
+        if not self._pid_is_alive(pid, timeout=timeout):
+            self._emit_ok()
+            return
+
+        # The process didn't terminate for some reason
+        self._emit_failed()
+        self._emit_error('Timed out while waiting for process (PID {pid}) '
+                         'to terminate'.format(pid=pid))
+
+        if force:
+            self._emit_message('Killing {prog} ... '.format(prog=self.prog))
+            try:
+                # Try to kill the process
+                os.kill(pid, signal.SIGKILL)
+            except OSError as ex:
+                self._emit_failed()
+                self._emit_error(str(ex))
+                sys.exit(1)
+
+            if not self._pid_is_alive(pid, timeout=timeout):
+                self._emit_ok()
+                return
+
+            # The process still didn't terminate for some reason
             self._emit_failed()
-            self._emit_error('Timed out while waiting for process (PID {pid}) '
-                             'to terminate'.format(pid=pid))
-            sys.exit(1)
+            self._emit_error('Process (PID {pid}) did not respond to SIGKILL '
+                             'for some reason'.format(pid=pid))
 
-        self._emit_ok()
+        sys.exit(1)
 
     @expose_action
-    def restart(self):
+    def restart(self, timeout=None, force=False, debug=False, *args, **kwargs):
         """Stop then start the daemon."""
-        self.stop()
-        self.start()
+        self.stop(timeout=timeout, force=force)
+        self.start(debug=debug, *args, **kwargs)
 
     @expose_action
-    def status(self):
+    def status(self, json=False, fields=None):
         """Get the status of the daemon."""
         if self.pidfile is None:
             raise DaemonError('Cannot get status of daemon without PID file')
 
         pid = self._read_pidfile()
         if pid is None:
-            self._emit_message(
-                '{prog} -- not running\n'.format(prog=self.prog))
+            if json:
+                message = json_encode({
+                    'prog': self.prog,
+                    'status': psutil.STATUS_DEAD,
+                }) + '\n'
+            else:
+                message = '{prog} -- not running\n'.format(prog=self.prog)
+            self._emit_message(message)
             sys.exit(1)
 
-        proc = psutil.Process(pid)
-        # Default data
-        data = {
-            'prog': self.prog,
-            'pid': pid,
-            'status': proc.status(),
-            'uptime': '0m',
-            'cpu': 0.0,
-            'memory': 0.0,
-        }
+        default_fields = {
+            'prog', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
+        if json and fields:
+            if isinstance(fields, str):
+                fields = {f.strip() for f in fields.split(',')}
+            else:
+                fields = set(fields)
+        else:
+            fields = default_fields
 
-        # Add up all the CPU and memory usage of all the
-        # processes in the process group
-        pgid = os.getpgid(pid)
-        for gproc in psutil.process_iter():
-            try:
-                if os.getpgid(gproc.pid) == pgid and gproc.pid != 0:
-                    data['cpu'] += gproc.cpu_percent(interval=0.1)
-                    data['memory'] += gproc.memory_percent()
-            except (psutil.Error, OSError):
-                continue
+        psutil_fields = fields - {'prog', 'group_num_procs', 'uptime'}
+        if 'uptime' in fields:
+            psutil_fields.add('create_time')
+        proc_group_info = get_proc_group_info(
+            os.getpgid(pid),
+            fields=psutil_fields)
 
-        # Calculate the uptime and format it in a human-readable but
-        # also machine-parsable format
-        try:
-            uptime_mins = int(round((time.time() - proc.create_time()) / 60))
-            uptime_hours, uptime_mins = divmod(uptime_mins, 60)
-            data['uptime'] = str(uptime_mins) + 'm'
-            if uptime_hours:
-                uptime_days, uptime_hours = divmod(uptime_hours, 24)
-                data['uptime'] = str(uptime_hours) + 'h ' + data['uptime']
-                if uptime_days:
-                    data['uptime'] = str(uptime_days) + 'd ' + data['uptime']
-        except psutil.Error:
-            pass
+        data = {}
+        for field in fields:
+            data[field] = proc_group_info[pid].get(field)
 
-        template = ('{prog} -- pid: {pid}, status: {status}, '
-                    'uptime: {uptime}, %cpu: {cpu:.1f}, %mem: {memory:.1f}\n')
-        self._emit_message(template.format(**data))
+        if 'cpu_percent' in fields:
+            data['cpu_percent'] = round(fsum(
+                v.get('cpu_percent', 0.0) for v in proc_group_info.values()
+            ), 3)
+        if 'memory_percent' in fields:
+            data['memory_percent'] = round(fsum(
+                v.get('memory_percent', 0.0) for v in proc_group_info.values()
+            ), 3)
+
+        if 'prog' in fields:
+            data['prog'] = self.prog
+        if 'group_num_procs' in fields:
+            data['group_num_procs'] = len(proc_group_info)
+        if 'uptime' in fields:
+            data['uptime'] = round(
+                time.time() - proc_group_info[pid]['create_time'], 3)
+
+        if json:
+            message = json_encode(data) + '\n'
+        else:
+            data['uptime'] = format_elapsed_time(data['uptime'])
+            template = (
+                '{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, '
+                '%cpu: {cpu_percent:.1f}, %mem: {memory_percent:.1f}\n')
+            message = template.format(**data)
+
+        self._emit_message(message)
 
     @classmethod
     def list_actions(cls):
@@ -732,10 +776,10 @@ class Daemon(object):
 
         return func
 
-    def do_action(self, action):
+    def do_action(self, action, *args, **kwargs):
         """Call an action by name."""
         func = self.get_action(action)
-        func()
+        return func(*args, **kwargs)
 
     def reload(self):
         """Make the daemon reload itself."""

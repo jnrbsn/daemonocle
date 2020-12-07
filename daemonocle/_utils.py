@@ -1,8 +1,13 @@
 import errno
+import json
 import os
 import posixpath
 import re
 import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import psutil
 
 from .exceptions import DaemonEnvironmentError
 
@@ -111,3 +116,58 @@ def proc_get_open_fds(pid=None):
                 fds.append(fd)
 
             return fds
+
+
+def json_encode(data):
+    return json.dumps(
+        data, separators=(', ', ': '), indent=None, sort_keys=True)
+
+
+def format_elapsed_time(seconds):
+    """Format number of seconds as days, hours, & minutes like '12d 3h 45m'"""
+    minutes = int(round(seconds / 60))
+    hours, minutes = divmod(minutes, 60)
+    result = '{minutes}m'.format(minutes=minutes)
+
+    if hours:
+        days, hours = divmod(hours, 24)
+        result = '{hours}h {prev}'.format(hours=hours, prev=result)
+
+        if days:
+            result = '{days}d {prev}'.format(days=days, prev=result)
+
+    return result
+
+
+def get_proc_info(proc, fields):
+    if 'cpu_percent' in fields:
+        proc.cpu_percent()
+        time.sleep(1)
+    return proc.as_dict(attrs=fields)
+
+
+def get_proc_group_info(pgid, fields):
+    group_procs = []
+    for proc in psutil.process_iter():
+        try:
+            if os.getpgid(proc.pid) == pgid and proc.pid != 0:
+                group_procs.append(proc)
+        except (psutil.Error, OSError):
+            continue
+
+    if len(group_procs) == 1:
+        return {group_procs[0].pid: get_proc_info(group_procs[0], fields)}
+
+    group_info = {}
+    with ThreadPoolExecutor(max_workers=len(group_procs)) as executor:
+        future_to_pid = {
+            executor.submit(get_proc_info, proc, fields): proc.pid
+            for proc in group_procs}
+        for future in as_completed(future_to_pid):
+            pid = future_to_pid[future]
+            try:
+                group_info[pid] = future.result()
+            except psutil.Error:
+                continue
+
+    return group_info

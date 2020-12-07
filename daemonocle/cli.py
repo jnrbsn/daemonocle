@@ -1,5 +1,7 @@
 """Utilities for building command-line interfaces for your daemons"""
 
+from functools import wraps
+
 import click
 
 from .core import Daemon
@@ -51,22 +53,35 @@ class DaemonCLI(click.MultiCommand):
         # The context object is a Daemon object
         daemon = ctx.obj
 
-        def subcommand(debug=False):
-            """Call a daemonocle action."""
-            if daemon.detach and debug:
-                daemon.detach = False
+        action = daemon.get_action(name)
 
-            daemon.do_action(name)
+        @wraps(action)
+        def subcommand(*args, **kwargs):
+            return action(*args, **kwargs)
 
-        # Override the docstring for the function so that it shows up
-        # correctly in the help output
-        subcommand.__doc__ = daemon.get_action(name).__doc__
-
-        if name == 'start':
-            # Add a --debug option for start
+        if name in {'start', 'restart'}:
             subcommand = click.option(
                 '--debug', is_flag=True,
-                help='Do NOT detach and run in the background.'
+                help='Do NOT detach and run in the background.',
+            )(subcommand)
+        elif name in {'stop', 'restart'}:
+            subcommand = click.option(
+                '--force', is_flag=True,
+                help='Kill the daemon uncleanly if the timeout is reached.',
+            )(subcommand)
+            subcommand = click.option(
+                '--timeout', type=int, default=None,
+                help=('Number of seconds to wait for the daemon to stop. '
+                      'Overrides "stop_timeout" from daemon defition.'),
+            )(subcommand)
+        elif name == 'status':
+            subcommand = click.option(
+                '--fields', type=str, default=None,
+                help='Comma-separated list of process info fields to display.',
+            )(subcommand)
+            subcommand = click.option(
+                '--json', is_flag=True,
+                help='Show the status in JSON format.',
             )(subcommand)
 
         # Make it into a click command

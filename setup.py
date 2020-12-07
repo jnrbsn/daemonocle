@@ -39,6 +39,7 @@ setup(
     packages=['daemonocle'],
     install_requires=[
         'click',
+        'futures; python_version=="2.7"',
         'psutil',
     ],
     extras_require={

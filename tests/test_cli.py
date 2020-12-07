@@ -1,4 +1,10 @@
+import json
+import posixpath
 import re
+import time
+
+
+timer = getattr(time, 'monotonic', time.time)
 
 
 def test_simple(pyscript):
@@ -89,9 +95,8 @@ def test_shorthand_2(pyscript):
             \"\"\"My awesome daemon\"\"\"
             print('hello world')
 
-        cli = DaemonCLI(daemon=Daemon(prog='foo', worker=main))
-
         if __name__ == '__main__':
+            cli = DaemonCLI(daemon=Daemon(prog='foo', worker=main))
             cli()
     """)
     result = script.run('--help')
@@ -105,6 +110,140 @@ def test_shorthand_2(pyscript):
         b'hello world\n'
         b'All children are gone. Parent is exiting...\n')
     assert result.stderr == b''
+
+
+def test_force_stop(pyscript):
+    script = pyscript("""
+        import signal
+        import sys
+        import time
+        from daemonocle import Daemon, DaemonCLI
+
+        def worker():
+            def handle_sigterm(*args, **kwargs):
+                time.sleep(10)
+
+            signal.signal(signal.SIGTERM, handle_sigterm)
+            time.sleep(10)
+
+        if __name__ == '__main__':
+            cli = DaemonCLI(daemon=Daemon(
+                worker=worker, prog='foo', pidfile='foo.pid', stop_timeout=1))
+            cli()
+    """)
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    script.run('start')
+    with open(pidfile, 'rb') as f:
+        pid = int(f.read())
+    t1 = timer()
+    result = script.run('stop', '--force')
+    t2 = timer()
+    assert result.returncode == 0
+    assert result.stdout == b'Stopping foo ... FAILED\nKilling foo ... OK\n'
+    assert result.stderr == ('ERROR: Timed out while waiting for process '
+                             '(PID {pid}) to terminate\n').format(
+                                pid=pid).encode('utf-8')
+    assert 1.0 <= (t2 - t1) <= 1.2
+
+
+def test_force_stop_custom_timeout(pyscript):
+    script = pyscript("""
+        import signal
+        import sys
+        import time
+        from daemonocle import Daemon, DaemonCLI
+
+        def worker():
+            def handle_sigterm(*args, **kwargs):
+                time.sleep(10)
+
+            signal.signal(signal.SIGTERM, handle_sigterm)
+            time.sleep(10)
+
+        if __name__ == '__main__':
+            cli = DaemonCLI(daemon=Daemon(
+                worker=worker, prog='foo', pidfile='foo.pid', stop_timeout=5))
+            cli()
+    """)
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    script.run('start')
+    with open(pidfile, 'rb') as f:
+        pid = int(f.read())
+    t1 = timer()
+    result = script.run('stop', '--force', '--timeout=1')
+    t2 = timer()
+    assert result.returncode == 0
+    assert result.stdout == b'Stopping foo ... FAILED\nKilling foo ... OK\n'
+    assert result.stderr == ('ERROR: Timed out while waiting for process '
+                             '(PID {pid}) to terminate\n').format(
+                                pid=pid).encode('utf-8')
+    assert 1.0 <= (t2 - t1) <= 1.2
+
+
+def test_status_json(pyscript):
+    script = pyscript("""
+        import time
+        from daemonocle.cli import cli
+
+        @cli(prog='foo', pidfile='foo.pid')
+        def main():
+            time.sleep(10)
+
+        if __name__ == '__main__':
+            main()
+    """)
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    script.run('start')
+    with open(pidfile, 'rb') as f:
+        pid = int(f.read())
+
+    result = script.run('status', '--json')
+    assert result.returncode == 0
+    status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
+    assert status['prog'] == 'foo'
+    assert status['pid'] == pid
+    assert status['status'] in {'running', 'sleeping'}
+    assert isinstance(status['uptime'], float)
+    assert isinstance(status['cpu_percent'], float)
+    assert isinstance(status['memory_percent'], float)
+
+    script.run('stop')
+
+
+def test_status_fields(pyscript):
+    script = pyscript("""
+        import subprocess
+        from daemonocle.cli import cli
+
+        @cli(prog='foo', pidfile='foo.pid')
+        def main():
+            subprocess.check_call(['sleep', '10'])
+
+        if __name__ == '__main__':
+            main()
+    """)
+    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    script.run('start')
+    result = script.run(
+        'status', '--json', '--fields=group_num_procs,open_files')
+    assert result.returncode == 0
+    status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
+    assert status['group_num_procs'] == 2
+    open_file_paths = set()
+    for item in status['open_files']:
+        try:
+            path = posixpath.realpath(item[0])
+        except OSError:
+            continue
+        else:
+            open_file_paths.add(path)
+    assert pidfile in open_file_paths
+
+    script.run('stop')
 
 
 def test_custom_actions(pyscript):
