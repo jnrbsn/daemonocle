@@ -18,6 +18,11 @@ from ._utils import (
     json_encode, proc_get_open_fds, unchroot_path)
 from .exceptions import DaemonError
 
+if sys.version_info.major < 3:
+    text = unicode  # noqa: F821
+else:
+    text = str
+
 
 def expose_action(func):
     """This decorator makes a method into an action."""
@@ -693,7 +698,7 @@ class Daemon(object):
         default_fields = {
             'prog', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
         if json and fields:
-            if isinstance(fields, str):
+            if isinstance(fields, text):
                 fields = {f.strip() for f in fields.split(',')}
             else:
                 fields = set(fields)
