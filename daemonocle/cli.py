@@ -13,29 +13,31 @@ class DaemonCLI(click.MultiCommand):
     """
 
     def __init__(
-            self, callback=None, options_metavar='[<options>]',
-            subcommand_metavar='<command> [<args>]...',
-            daemon_params=None, daemon_class=Daemon, is_worker=True,
-            **attrs):
+            self, callback=None, daemon_params=None, is_worker=True,
+            daemon_class=Daemon, daemon=None, **kwargs):
         """Create a new DaemonCLI object."""
         self.daemon_params = daemon_params or {}
         self.daemon_class = daemon_class
         self.is_worker = is_worker
 
-        if self.is_worker:
+        if daemon is None:
+            daemon = self.daemon_class(**self.daemon_params)
+
+        if ((not daemon.worker or not callable(daemon.worker))
+                and self.is_worker):
             # If the callback is the worker, then don't pass the
             # callback to the parent class so we don't call it twice
-            self.daemon_params['worker'] = callback
+            daemon.worker = callback
             callback = None
 
-        # The context object will be a Daemon object
-        context_settings = {'obj': self.daemon_class(**self.daemon_params)}
+        # The context object will be the Daemon object
+        context_settings = {'obj': daemon}
+
+        if not kwargs.get('help'):
+            kwargs['help'] = daemon.worker.__doc__
 
         super(DaemonCLI, self).__init__(
-            callback=callback, options_metavar=options_metavar,
-            subcommand_metavar=subcommand_metavar,
-            context_settings=context_settings, **attrs
-        )
+            callback=callback, context_settings=context_settings, **kwargs)
 
     def list_commands(self, ctx):
         """Get a list of subcommands."""
@@ -68,10 +70,13 @@ class DaemonCLI(click.MultiCommand):
             )(subcommand)
 
         # Make it into a click command
-        subcommand = click.command(
-            name, options_metavar=self.options_metavar)(subcommand)
+        subcommand = click.command(name)(subcommand)
 
         return subcommand
+
+
+def cli(**daemon_params):
+    return click.command(cls=DaemonCLI, daemon_params=daemon_params)
 
 
 # Make a pass decorator for passing the Daemon object

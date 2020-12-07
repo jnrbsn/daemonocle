@@ -58,6 +58,55 @@ def test_debug(pyscript):
     assert result.stderr == b''
 
 
+def test_shorthand_1(pyscript):
+    script = pyscript("""
+        import click
+        from daemonocle.cli import cli
+
+        @cli(prog='foo')
+        def main():
+            \"\"\"My awesome daemon\"\"\"
+            print('hello world')
+
+        if __name__ == '__main__':
+            main()
+    """)
+    result = script.run('start', '--debug')
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
+def test_shorthand_2(pyscript):
+    script = pyscript("""
+        from daemonocle import Daemon
+        from daemonocle.cli import DaemonCLI
+
+        def main():
+            \"\"\"My awesome daemon\"\"\"
+            print('hello world')
+
+        cli = DaemonCLI(daemon=Daemon(prog='foo', worker=main))
+
+        if __name__ == '__main__':
+            cli()
+    """)
+    result = script.run('--help')
+    assert result.returncode == 0
+    assert b'My awesome daemon' in result.stdout
+
+    result = script.run('start', '--debug')
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
 def test_custom_actions(pyscript):
     script = pyscript("""
         import time
