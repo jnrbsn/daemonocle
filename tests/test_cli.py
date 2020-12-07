@@ -211,6 +211,12 @@ def test_status_json(pyscript):
 
     script.run('stop')
 
+    result = script.run('status', '--json')
+    assert result.returncode == 1
+    status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
+    assert status['prog'] == 'foo'
+    assert status['status'] == 'dead'
+
 
 def test_status_fields(pyscript):
     script = pyscript("""
