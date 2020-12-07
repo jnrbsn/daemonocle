@@ -375,11 +375,11 @@ And here are descriptions of all the arguments:
 
 **stdout_file**
     If provided when ``detach=True``, the STDOUT stream will be redirected (appended) to the file
-    at the given path. In non-detached mode, this argument is ignored.
+    at the given path. In non-detached mode, this argument is ignored. (new in v1.1.0)
 
 **stderr_file**
     If provided when ``detach=True``, the STDERR stream will be redirected (appended) to the file
-    at the given path. In non-detached mode, this argument is ignored.
+    at the given path. In non-detached mode, this argument is ignored. (new in v1.1.0)
 
 Actions
 ~~~~~~~
