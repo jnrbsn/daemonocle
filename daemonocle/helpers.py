@@ -18,6 +18,6 @@ class ExecWorker(Callable):
         if b'/' in self.prog:
             self.prog = posixpath.realpath(self.prog)
 
-    def __call__(self):
+    def __call__(self):  # pragma: no cover
         exec_prog = os.execv if self.prog[0] == b'/' else os.execvp
         exec_prog(self.prog, (self.prog,) + self.args)
