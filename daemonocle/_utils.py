@@ -15,6 +15,12 @@ _re_whitespace = re.compile(br'\s+')
 _re_non_digits = re.compile(br'[^\d]+')
 
 
+def to_bytes(x):
+    if isinstance(x, bytes):
+        return x
+    return x.encode('utf-8')
+
+
 def check_dir_exists(path):
     """Check if a directory exists and raise OSError if it doesn't"""
     if not posixpath.exists(path):
