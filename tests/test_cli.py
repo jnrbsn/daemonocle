@@ -296,6 +296,8 @@ def test_custom_actions_with_options(pyscript):
         import daemonocle
 
         class MyDaemon(daemonocle.Daemon):
+            prog = 'my_daemon'
+
             @daemonocle.expose_action
             def foo(self, wibble: int,
                     wobble: str = '1ErrJ5QgasJKkcMdRBrEQHtyGqkWLa1sSJS'):
@@ -310,12 +312,12 @@ def test_custom_actions_with_options(pyscript):
                 print(repr(flub))
                 print(repr(kwargs))
 
-        def main():
-            \"\"\"2PfZ4gSZaghZXK3VuDqbD82ZGqpqDLAKPpj\"\"\"
-            pass
+            def worker(self):
+                \"\"\"2PfZ4gSZaghZXK3VuDqbD82ZGqpqDLAKPpj\"\"\"
+                pass
 
         if __name__ == '__main__':
-            MyDaemon(prog='foo', worker=main, pidfile='foo.pid').cli()
+            MyDaemon(pidfile='foo.pid').cli()
     """)
     result = script.run('--help')
     assert result.returncode == 0

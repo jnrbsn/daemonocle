@@ -39,9 +39,13 @@ class Daemon(object):
             umask=0o22, stop_timeout=10, close_open_files=False,
             stdout_file=None, stderr_file=None):
         """Create a new Daemon object."""
-        self.worker = worker
+        if worker is not None or not callable(getattr(self, 'worker', None)):
+            self.worker = worker
         self.shutdown_callback = shutdown_callback
-        self.prog = prog or posixpath.basename(sys.argv[0])
+        if prog is not None:
+            self.prog = prog
+        elif not getattr(self, 'prog', None):
+            self.prog = posixpath.basename(sys.argv[0])
         self.pidfile = pidfile
         self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()

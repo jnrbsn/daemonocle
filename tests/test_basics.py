@@ -2,6 +2,7 @@ import os
 import posixpath
 import re
 import signal
+import sys
 
 import psutil
 import pytest
@@ -38,8 +39,9 @@ def test_simple(pyscript):
     assert b'DaemonError: Cannot stop daemon without PID file' in result.stderr
 
 
-def test_no_worker():
+def test_no_args_or_worker():
     daemon = Daemon()
+    assert daemon.prog == posixpath.basename(sys.argv[0])
     with pytest.raises(DaemonError):
         daemon.do_action('start')
 
@@ -356,3 +358,30 @@ def test_self_reload(pyscript):
     with pytest.raises(DaemonError):
         # Don't allow calling reload like this
         daemon.reload()
+
+
+def test_subclass(pyscript):
+    script = pyscript("""
+        import daemonocle
+
+        class MyDaemon(daemonocle.Daemon):
+            prog = '1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE'
+
+            def __init__(self):
+                super(MyDaemon, self).__init__(detach=False)
+
+            def worker(self):
+                print('I am {prog}'.format(prog=self.prog))
+                print('also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM')
+
+        if __name__ == '__main__':
+            MyDaemon().do_action('start')
+    """)
+    result = script.run()
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting 1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE ... OK\n'
+        b'I am 1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE\n'
+        b'also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
