@@ -786,6 +786,12 @@ class Daemon(object):
         func = self.get_action(action)
         return func(*args, **kwargs)
 
+    def cli(self):
+        """Invoke the CLI."""
+        from daemonocle.cli import DaemonCLI
+        cli = DaemonCLI(daemon=self)
+        return cli()
+
     def reload(self):
         """Make the daemon reload itself."""
         pid = self._read_pidfile()

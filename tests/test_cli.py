@@ -1,7 +1,10 @@
 import json
 import posixpath
 import re
+import sys
 import time
+
+import pytest
 
 timer = getattr(time, 'monotonic', time.time)
 
@@ -253,7 +256,6 @@ def test_status_fields(pyscript):
 
 def test_custom_actions(pyscript):
     script = pyscript("""
-        import time
         import click
         from daemonocle import Daemon, expose_action
         from daemonocle.cli import DaemonCLI
@@ -286,3 +288,70 @@ def test_custom_actions(pyscript):
     result = script.run('plantain', '--help')
     assert result.returncode != 0
     assert b'No such command' in result.stderr
+
+
+@pytest.mark.skipif(sys.version_info.major < 3, reason='Requires Python 3.x')
+def test_custom_actions_with_options(pyscript):
+    script = pyscript("""
+        import daemonocle
+
+        class MyDaemon(daemonocle.Daemon):
+            @daemonocle.expose_action
+            def foo(self, wibble: int,
+                    wobble: str = '1ErrJ5QgasJKkcMdRBrEQHtyGqkWLa1sSJS'):
+                \"\"\"2ScD2S4w44jivwVNAamYdCVUU8afdDqTsGU\"\"\"
+                print(wibble * 24369)
+                print(sum(map(ord, wobble)))
+
+            @daemonocle.expose_action
+            def bar(self, wubble=False, flub=True, **kwargs):
+                \"\"\"1R3YQRaAMU2inZ7mhtZC96MTiaykPYGCqC9\"\"\"
+                print(repr(wubble))
+                print(repr(flub))
+                print(repr(kwargs))
+
+        def main():
+            \"\"\"2PfZ4gSZaghZXK3VuDqbD82ZGqpqDLAKPpj\"\"\"
+            pass
+
+        if __name__ == '__main__':
+            MyDaemon(prog='foo', worker=main, pidfile='foo.pid').cli()
+    """)
+    result = script.run('--help')
+    assert result.returncode == 0
+    assert b'2PfZ4gSZaghZXK3VuDqbD82ZGqpqDLAKPpj' in result.stdout
+    assert re.search(
+        br'\s*foo\s+2ScD2S4w44jivwVNAamYdCVUU8afdDqTsGU\n', result.stdout)
+    assert re.search(
+        br'\s*bar\s+1R3YQRaAMU2inZ7mhtZC96MTiaykPYGCqC9\n', result.stdout)
+
+    result = script.run('foo', '--help')
+    assert result.returncode == 0
+    assert b'2ScD2S4w44jivwVNAamYdCVUU8afdDqTsGU' in result.stdout
+    assert b'--wibble' in result.stdout
+    assert b'--wobble' in result.stdout
+
+    result = script.run('foo')
+    assert result.returncode == 2
+    assert b'Missing option \'--wibble\'' in result.stderr
+
+    result = script.run('foo', '--wibble=9055')
+    assert result.returncode == 0
+    assert result.stdout == b'220661295\n3077\n'
+
+    result = script.run('foo', '--wibble=1850',
+                        '--wobble=26hevLhGzeeX7dNqAtdXjKBtmevsxgBvWNG')
+    assert result.returncode == 0
+    assert result.stdout == b'45082650\n3254\n'
+
+    result = script.run('bar')
+    assert result.returncode == 0
+    assert result.stdout == b'False\nTrue\n{}\n'
+
+    result = script.run('bar', '--flub')
+    assert result.returncode == 0
+    assert result.stdout == b'False\nTrue\n{}\n'
+
+    result = script.run('bar', '--wubble', '--no-flub')
+    assert result.returncode == 0
+    assert result.stdout == b'True\nFalse\n{}\n'
