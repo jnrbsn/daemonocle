@@ -115,7 +115,7 @@ def test_unresponsive_stop(pyscript):
 
     assert psutil.pid_exists(pid)
 
-    os.kill(pid, signal.SIGKILL)
+    os.kill(pid, signal.SIGQUIT)
 
     try:
         proc = psutil.Process(pid)

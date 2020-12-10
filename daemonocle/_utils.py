@@ -4,6 +4,7 @@ import os
 import posixpath
 import re
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -19,6 +20,45 @@ def to_bytes(x):
     if isinstance(x, bytes):
         return x
     return x.encode('utf-8')
+
+
+def exit(status):
+    """sys.exit() wrapper with better handling of negative exit codes"""
+    if isinstance(status, int):
+        status &= 0xff
+        if status < 0:
+            # Use the bash convention for signals
+            status = 0x80 - status
+
+    sys.exit(status)
+
+
+def waitstatus_to_exitcode(wait_status):  # pragma: no cover
+    """Convert a wait status to an exit code."""
+    if hasattr(os, 'waitstatus_to_exitcode'):
+        # This was added in Python 3.9
+        return os.waitstatus_to_exitcode(wait_status)
+
+    # The code below was ported from here:
+    # https://github.com/python/cpython/blob/v3.9.1/Modules/posixmodule.c#L14363-L14402
+
+    if os.WIFEXITED(wait_status):
+        exitcode = os.WEXITSTATUS(wait_status)
+        if exitcode < 0:
+            raise ValueError('invalid WEXITSTATUS: {}'.format(exitcode))
+    elif os.WIFSIGNALED(wait_status):
+        signum = os.WTERMSIG(wait_status)
+        if signum <= 0:
+            raise ValueError('invalid WTERMSIG: {}'.format(signum))
+        exitcode = -signum
+    elif os.WIFSTOPPED(wait_status):
+        signum = os.WSTOPSIG(wait_status)
+        raise ValueError(
+            'process stopped by delivery of signal {}'.format(signum))
+    else:
+        raise ValueError('invalid wait status: {}'.format(wait_status))
+
+    return exitcode
 
 
 def check_dir_exists(path):

@@ -58,7 +58,7 @@ def test_immediate_exit(pyscript):
         daemon.do_action('start')
     """)
     result = script.run()
-    assert result.returncode == 0
+    assert result.returncode == 42
     assert result.stdout == b'Starting foo ... FAILED\n'
     assert result.stderr == (b'ERROR: Child exited immediately with '
                              b'exit code 42\n')

@@ -158,7 +158,7 @@ def test_chrootdir_detach_no_output_files(pyscript):
 
     result = script.run('start')
     try:
-        assert result.returncode == 0
+        assert result.returncode == 1
         assert result.stdout == b'Starting foo ... FAILED\n'
         assert (b'"stdout_file" and "stderr_file" must be provided'
                 in result.stderr)

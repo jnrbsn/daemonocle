@@ -14,8 +14,9 @@ from math import fsum
 import psutil
 
 from ._utils import (
-    check_dir_exists, chroot_path, format_elapsed_time, get_proc_group_info,
-    json_encode, proc_get_open_fds, unchroot_path)
+    check_dir_exists, chroot_path, exit, format_elapsed_time,
+    get_proc_group_info, json_encode, proc_get_open_fds, unchroot_path,
+    waitstatus_to_exitcode)
 from .exceptions import DaemonError
 
 if sys.version_info.major < 3:
@@ -408,8 +409,8 @@ class Daemon(object):
             # Wait for the first child, because it's going to wait and
             # check to make sure the second child is actually running
             # before exiting
-            os.waitpid(pid, 0)
-            sys.exit(0)
+            status = os.waitpid(pid, 0)
+            exit(waitstatus_to_exitcode(status[1]))
 
         # Become a process group and session group leader
         os.setsid()
@@ -424,14 +425,14 @@ class Daemon(object):
             status = os.waitpid(pid, os.WNOHANG)
             if status[0] == pid:
                 # The child is already gone for some reason
-                exitcode = status[1] % 255
+                exitcode = waitstatus_to_exitcode(status[1])
                 self._emit_failed()
                 self._emit_error('Child exited immediately with exit '
                                  'code {code}'.format(code=exitcode))
-                sys.exit(exitcode)
+                exit(exitcode)
             else:
                 self._emit_ok()
-                sys.exit(0)
+                exit(0)
 
         self._reset_file_descriptors()
 
@@ -445,7 +446,7 @@ class Daemon(object):
         pid = os.fork()
         if pid > 0:
             # Exit parent
-            sys.exit(0)
+            exit(0)
 
         if wait_for_parent and cls._pid_is_alive(ppid, timeout=1):
             raise DaemonError(
@@ -497,7 +498,7 @@ class Daemon(object):
                     # so we can exit
                     cls._emit_message(
                         'All children are gone. Parent is exiting...\n')
-                    sys.exit(0)
+                    exit(0)
             except KeyboardInterrupt:
                 # Don't exit immediatedly on Ctrl-C, because we want to
                 # wait for the child processes to finish
@@ -508,7 +509,7 @@ class Daemon(object):
         """Shutdown and cleanup everything."""
         if self._shutdown_complete:
             # Make sure we don't accidentally re-run the all cleanup
-            sys.exit(code)
+            exit(code)
 
         if self.shutdown_callback is not None:
             # Call the shutdown callback with a message suitable for
@@ -519,7 +520,7 @@ class Daemon(object):
             self._close_pidfile()
 
         self._shutdown_complete = True
-        sys.exit(code)
+        exit(code)
 
     def _handle_terminate(self, signal_number, _):
         """Handle a signal to terminate."""
@@ -530,7 +531,7 @@ class Daemon(object):
         }
         message = 'Terminated by {name} ({number})'.format(
             name=signal_names[signal_number], number=signal_number)
-        self._shutdown(message, code=128+signal_number)
+        self._shutdown(message, code=-signal_number)
 
     def _run(self, *args, **kwargs):
         """Run the worker function with some custom exception handling."""
@@ -538,7 +539,7 @@ class Daemon(object):
             # Run the worker
             self.worker(*args, **kwargs)
         except SystemExit as ex:
-            # sys.exit() was called
+            # exit() was called
             if isinstance(ex.code, int):
                 if ex.code is not None and ex.code != 0:
                     # A custom exit code was specified
@@ -547,13 +548,13 @@ class Daemon(object):
                             exitcode=ex.code),
                         ex.code)
             else:
-                # A message was passed to sys.exit()
+                # A message was passed to exit()
                 self._shutdown(
                     'Exiting with message: {msg}'.format(msg=ex.code), 1)
         except Exception as ex:
             if self.detach:
                 self._shutdown('Dying due to unhandled {cls}: {msg}'.format(
-                    cls=ex.__class__.__name__, msg=str(ex)), 127)
+                    cls=ex.__class__.__name__, msg=str(ex)), 1)
             else:
                 # We're not detached so just raise the exception
                 raise
@@ -643,7 +644,7 @@ class Daemon(object):
         except OSError as ex:
             self._emit_failed()
             self._emit_error(str(ex))
-            sys.exit(1)
+            exit(1)
 
         if not self._pid_is_alive(pid, timeout=timeout):
             self._emit_ok()
@@ -662,7 +663,7 @@ class Daemon(object):
             except OSError as ex:
                 self._emit_failed()
                 self._emit_error(str(ex))
-                sys.exit(1)
+                exit(1)
 
             if not self._pid_is_alive(pid, timeout=timeout):
                 self._emit_ok()
@@ -673,7 +674,7 @@ class Daemon(object):
             self._emit_error('Process (PID {pid}) did not respond to SIGKILL '
                              'for some reason'.format(pid=pid))
 
-        sys.exit(1)
+        exit(1)
 
     @expose_action
     def restart(self, timeout=None, force=False, debug=False, *args, **kwargs):
@@ -697,7 +698,7 @@ class Daemon(object):
             else:
                 message = '{prog} -- not running\n'.format(prog=self.prog)
             self._emit_message(message)
-            sys.exit(1)
+            exit(1)
 
         default_fields = {
             'prog', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
