@@ -6,8 +6,8 @@ try:
 except ImportError:
     from collections import Callable
 
-from daemonocle.core import Daemon
 from daemonocle._utils import to_bytes
+from daemonocle.core import Daemon
 
 
 class FHSDaemon(Daemon):
