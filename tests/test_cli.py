@@ -146,7 +146,7 @@ def test_force_stop(pyscript):
     assert result.stderr == ('ERROR: Timed out while waiting for process '
                              '(PID {pid}) to terminate\n').format(
                                 pid=pid).encode('utf-8')
-    assert 1.0 <= (t2 - t1) <= 1.5
+    assert 1.0 <= (t2 - t1) < 2.0
 
 
 def test_force_stop_custom_timeout(pyscript):
@@ -181,7 +181,7 @@ def test_force_stop_custom_timeout(pyscript):
     assert result.stderr == ('ERROR: Timed out while waiting for process '
                              '(PID {pid}) to terminate\n').format(
                                 pid=pid).encode('utf-8')
-    assert 1.0 <= (t2 - t1) <= 1.5
+    assert 1.0 <= (t2 - t1) < 2.0
 
 
 def test_status_json(pyscript):
