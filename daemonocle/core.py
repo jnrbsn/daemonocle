@@ -38,15 +38,19 @@ class Daemon(object):
             self, worker=None, shutdown_callback=None, prog=None, pidfile=None,
             detach=True, uid=None, gid=None, workdir='/', chrootdir=None,
             umask=0o22, stop_timeout=10, close_open_files=False,
-            stdout_file=None, stderr_file=None):
+            stdout_file=None, stderr_file=None, name=None):
         """Create a new Daemon object."""
+        # prog is deprecated in favor of name
+        name = name or prog
+        if name is not None:
+            self.name = name
+        elif not getattr(self, 'name', None):
+            self.name = posixpath.basename(sys.argv[0])
+
         if worker is not None or not callable(getattr(self, 'worker', None)):
             self.worker = worker
+
         self.shutdown_callback = shutdown_callback
-        if prog is not None:
-            self.prog = prog
-        elif not getattr(self, 'prog', None):
-            self.prog = posixpath.basename(sys.argv[0])
         self.pidfile = pidfile
         self.detach = detach and self._is_detach_necessary()
         self.uid = uid if uid is not None else os.getuid()
@@ -573,7 +577,7 @@ class Daemon(object):
         if os.environ.get('DAEMONOCLE_RELOAD'):
             # If this is actually a reload, we need to wait for the
             # existing daemon to exit first
-            self._emit_message('Reloading {prog} ... '.format(prog=self.prog))
+            self._emit_message('Reloading {name} ... '.format(name=self.name))
             # Get the parent PID before we orphan this process
             ppid = os.getppid()
             # Orhpan this process so the parent can exit
@@ -591,8 +595,8 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is not None:
             # I don't think this should not be a fatal error
-            self._emit_warning('{prog} already running with PID {pid}'.format(
-                prog=self.prog, pid=pid))
+            self._emit_warning('{name} already running with PID {pid}'.format(
+                name=self.name, pid=pid))
             return
 
         if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
@@ -602,7 +606,7 @@ class Daemon(object):
 
         if not os.environ.get('DAEMONOCLE_RELOAD'):
             # A custom message is printed for reloading
-            self._emit_message('Starting {prog} ... '.format(prog=self.prog))
+            self._emit_message('Starting {name} ... '.format(name=self.name))
 
         self._setup_environment()
 
@@ -631,12 +635,12 @@ class Daemon(object):
         pid = self._read_pidfile()
         if pid is None:
             # I don't think this should be a fatal error
-            self._emit_warning('{prog} is not running'.format(prog=self.prog))
+            self._emit_warning('{name} is not running'.format(name=self.name))
             return
 
         timeout = timeout or self.stop_timeout
 
-        self._emit_message('Stopping {prog} ... '.format(prog=self.prog))
+        self._emit_message('Stopping {name} ... '.format(name=self.name))
 
         try:
             # Try to terminate the process
@@ -656,7 +660,7 @@ class Daemon(object):
                          'to terminate'.format(pid=pid))
 
         if force:
-            self._emit_message('Killing {prog} ... '.format(prog=self.prog))
+            self._emit_message('Killing {name} ... '.format(name=self.name))
             try:
                 # Try to kill the process
                 os.kill(pid, signal.SIGKILL)
@@ -692,16 +696,16 @@ class Daemon(object):
         if pid is None:
             if json:
                 message = json_encode({
-                    'prog': self.prog,
+                    'name': self.name,
                     'status': psutil.STATUS_DEAD,
                 }) + '\n'
             else:
-                message = '{prog} -- not running\n'.format(prog=self.prog)
+                message = '{name} -- not running\n'.format(name=self.name)
             self._emit_message(message)
             exit(1)
 
         default_fields = {
-            'prog', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
+            'name', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
         if json and fields:
             if isinstance(fields, text):
                 fields = {f.strip() for f in fields.split(',')}
@@ -710,7 +714,7 @@ class Daemon(object):
         else:
             fields = default_fields
 
-        psutil_fields = fields - {'prog', 'group_num_procs', 'uptime'}
+        psutil_fields = fields - {'name', 'group_num_procs', 'uptime'}
         if 'uptime' in fields:
             psutil_fields.add('create_time')
         proc_group_info = get_proc_group_info(
@@ -730,8 +734,8 @@ class Daemon(object):
                 v.get('memory_percent', 0.0) for v in proc_group_info.values()
             ), 3)
 
-        if 'prog' in fields:
-            data['prog'] = self.prog
+        if 'name' in fields:
+            data['name'] = self.name
         if 'group_num_procs' in fields:
             data['group_num_procs'] = len(proc_group_info)
         if 'uptime' in fields:
@@ -743,7 +747,7 @@ class Daemon(object):
         else:
             data['uptime'] = format_elapsed_time(data['uptime'])
             template = (
-                '{prog} -- pid: {pid}, status: {status}, uptime: {uptime}, '
+                '{name} -- pid: {pid}, status: {status}, uptime: {uptime}, '
                 '%cpu: {cpu_percent:.1f}, %mem: {memory_percent:.1f}\n')
             message = template.format(**data)
 

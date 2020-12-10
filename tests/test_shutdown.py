@@ -23,7 +23,7 @@ def test_sys_exit_message(pyscript):
             with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
                 f.write(message)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         shutdown_callback=shutdown_callback)
         daemon.do_action('start')
     """)
@@ -54,7 +54,7 @@ def test_uncaught_exception(pyscript):
             with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
                 f.write(message)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         shutdown_callback=shutdown_callback)
         daemon.do_action('start')
     """)
@@ -74,7 +74,7 @@ def test_uncaught_exception(pyscript):
         def worker():
             raise ValueError('banana')
 
-        daemon = Daemon(worker=worker, prog='foo', detach=False)
+        daemon = Daemon(worker=worker, name='foo', detach=False)
         daemon.do_action('start')
     """)
     result = script.run()
@@ -95,7 +95,7 @@ def test_unresponsive_stop(pyscript):
             signal.signal(signal.SIGTERM, handle_sigterm)
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         stop_timeout=1)
         daemon.do_action(sys.argv[1])
     """)
@@ -140,7 +140,7 @@ def test_unresponsive_reload(pyscript):
                 time.sleep(2)
 
         daemon = Daemon(worker=worker, shutdown_callback=shutdown_callback,
-                        prog='foo', pidfile='foo.pid', detach=False,
+                        name='foo', pidfile='foo.pid', detach=False,
                         stop_timeout=1)
 
         daemon.do_action('start')

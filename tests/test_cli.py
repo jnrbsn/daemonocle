@@ -15,7 +15,7 @@ def test_simple(pyscript):
         from daemonocle.cli import DaemonCLI
 
         @click.command(cls=DaemonCLI,
-                       daemon_params={'prog': 'foo', 'pidfile': 'foo.pid'})
+                       daemon_params={'name': 'foo', 'pidfile': 'foo.pid'})
         def main():
             \"\"\"My awesome daemon\"\"\"
             pass
@@ -49,7 +49,7 @@ def test_debug(pyscript):
         import click
         from daemonocle.cli import DaemonCLI
 
-        @click.command(cls=DaemonCLI, daemon_params={'prog': 'foo'})
+        @click.command(cls=DaemonCLI, daemon_params={'name': 'foo'})
         def main():
             \"\"\"My awesome daemon\"\"\"
             print('hello world')
@@ -71,7 +71,7 @@ def test_shorthand_1(pyscript):
         import click
         from daemonocle.cli import cli
 
-        @cli(prog='foo')
+        @cli(name='foo')
         def main():
             \"\"\"My awesome daemon\"\"\"
             print('hello world')
@@ -98,7 +98,7 @@ def test_shorthand_2(pyscript):
             print('hello world')
 
         if __name__ == '__main__':
-            cli = DaemonCLI(daemon=Daemon(prog='foo', worker=main))
+            cli = DaemonCLI(daemon=Daemon(name='foo', worker=main))
             cli()
     """)
     result = script.run('--help')
@@ -130,7 +130,7 @@ def test_force_stop(pyscript):
 
         if __name__ == '__main__':
             cli = DaemonCLI(daemon=Daemon(
-                worker=worker, prog='foo', pidfile='foo.pid', stop_timeout=1))
+                worker=worker, name='foo', pidfile='foo.pid', stop_timeout=1))
             cli()
     """)
     pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
@@ -165,7 +165,7 @@ def test_force_stop_custom_timeout(pyscript):
 
         if __name__ == '__main__':
             cli = DaemonCLI(daemon=Daemon(
-                worker=worker, prog='foo', pidfile='foo.pid', stop_timeout=5))
+                worker=worker, name='foo', pidfile='foo.pid', stop_timeout=5))
             cli()
     """)
     pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
@@ -189,7 +189,7 @@ def test_status_json(pyscript):
         import time
         from daemonocle.cli import cli
 
-        @cli(prog='foo', pidfile='foo.pid')
+        @cli(name='foo', pidfile='foo.pid')
         def main():
             time.sleep(10)
 
@@ -205,7 +205,7 @@ def test_status_json(pyscript):
     result = script.run('status', '--json')
     assert result.returncode == 0
     status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
-    assert status['prog'] == 'foo'
+    assert status['name'] == 'foo'
     assert status['pid'] == pid
     assert status['status'] in {'running', 'sleeping'}
     assert isinstance(status['uptime'], float)
@@ -217,7 +217,7 @@ def test_status_json(pyscript):
     result = script.run('status', '--json')
     assert result.returncode == 1
     status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
-    assert status['prog'] == 'foo'
+    assert status['name'] == 'foo'
     assert status['status'] == 'dead'
 
 
@@ -226,7 +226,7 @@ def test_status_fields(pyscript):
         import subprocess
         from daemonocle.cli import cli
 
-        @cli(prog='foo', pidfile='foo.pid')
+        @cli(name='foo', pidfile='foo.pid')
         def main():
             subprocess.check_call(['sleep', '10'])
 
@@ -270,7 +270,7 @@ def test_custom_actions(pyscript):
                 pass
 
         @click.command(cls=DaemonCLI, daemon_class=BananaDaemon,
-                       daemon_params={'prog': 'foo', 'pidfile': 'foo.pid'})
+                       daemon_params={'name': 'foo', 'pidfile': 'foo.pid'})
         def main():
             \"\"\"The banana daemon\"\"\"
             pass
@@ -296,7 +296,7 @@ def test_custom_actions_with_options(pyscript):
         import daemonocle
 
         class MyDaemon(daemonocle.Daemon):
-            prog = 'my_daemon'
+            name = 'my_daemon'
 
             @daemonocle.expose_action
             def foo(self, wibble: int,

@@ -16,37 +16,37 @@ from daemonocle.helpers import FHSDaemon
     (
         (
             '/opt',
-            '/var/opt/{prog}/run/{prog}.pid',
-            '/var/opt/{prog}/log/stdout.log',
-            '/var/opt/{prog}/log/stderr.log',
-            ('/var/opt/{prog}',),
+            '/var/opt/{name}/run/{name}.pid',
+            '/var/opt/{name}/log/stdout.log',
+            '/var/opt/{name}/log/stderr.log',
+            ('/var/opt/{name}',),
         ),
         (
             '/usr/local',
-            '/var/local/run/{prog}/{prog}.pid',
-            '/var/local/log/{prog}/stdout.log',
-            '/var/local/log/{prog}/stderr.log',
-            ('/var/local/run/{prog}', '/var/local/log/{prog}'),
+            '/var/local/run/{name}/{name}.pid',
+            '/var/local/log/{name}/stdout.log',
+            '/var/local/log/{name}/stderr.log',
+            ('/var/local/run/{name}', '/var/local/log/{name}'),
         ),
         (
             '/usr',
-            '/var/run/{prog}/{prog}.pid',
-            '/var/log/{prog}/stdout.log',
-            '/var/log/{prog}/stderr.log',
-            ('/var/run/{prog}', '/var/log/{prog}'),
+            '/var/run/{name}/{name}.pid',
+            '/var/log/{name}/stdout.log',
+            '/var/log/{name}/stderr.log',
+            ('/var/run/{name}', '/var/log/{name}'),
         ),
         (
-            '/tmp/{prog}',
-            '/tmp/{prog}/run/{prog}.pid',
-            '/tmp/{prog}/log/stdout.log',
-            '/tmp/{prog}/log/stderr.log',
-            ('/tmp/{prog}',),
+            '/tmp/{name}',
+            '/tmp/{name}/run/{name}.pid',
+            '/tmp/{name}/log/stdout.log',
+            '/tmp/{name}/log/stderr.log',
+            ('/tmp/{name}',),
         ),
     )
 )
 def test_fhs_daemon(
         pyscript, prefix, pidfile, stdout_file, stderr_file, cleanup_dirs):
-    prog = sha256(os.urandom(1024)).hexdigest()
+    name = sha256(os.urandom(1024)).hexdigest()
 
     script = pyscript("""
         import sys
@@ -61,41 +61,41 @@ def test_fhs_daemon(
             time.sleep(10)
 
         FHSDaemon(
-            prog='{prog}',
+            name='{name}',
             prefix='{prefix}',
             worker=worker,
         ).cli()
     """.format(
-        prog=prog,
-        prefix=prefix.format(prog=prog),
+        name=name,
+        prefix=prefix.format(name=name),
     ))
 
     try:
         result = script.run('start')
         assert result.returncode == 0
         assert result.stdout.decode('ascii') == (
-            'Starting {prog} ... OK\n'.format(prog=prog))
+            'Starting {name} ... OK\n'.format(name=name))
         assert result.stderr == b''
 
-        with open(pidfile.format(prog=prog), 'rb') as f:
+        with open(pidfile.format(name=name), 'rb') as f:
             pid = int(f.read())
 
-        result = script.run('status', '--json', '--fields=prog,pid,status')
+        result = script.run('status', '--json', '--fields=name,pid,status')
         assert result.returncode == 0
         status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
-        assert status['prog'] == prog
+        assert status['name'] == name
         assert status['pid'] == pid
         assert status['status'] in {'running', 'sleeping'}
 
         result = script.run('stop')
         assert result.returncode == 0
         assert result.stdout.decode('ascii') == (
-            'Stopping {prog} ... OK\n'.format(prog=prog))
+            'Stopping {name} ... OK\n'.format(name=name))
         assert result.stderr == b''
 
-        with open(stdout_file.format(prog=prog), 'rb') as f:
+        with open(stdout_file.format(name=name), 'rb') as f:
             assert f.read() == b'1MUXMD4fhoF8JJbCVvoy64rtXdnBNQecYHU\n'
-        with open(stderr_file.format(prog=prog), 'rb') as f:
+        with open(stderr_file.format(name=name), 'rb') as f:
             assert f.read() == b'2ffzKqhoVM75joucXzHFsjjCJ5vCBZCz7Ky\n'
     finally:
         # This needs to run with the same permissions as the original script
@@ -104,14 +104,14 @@ def test_fhs_daemon(
             shutil.rmtree(sys.argv[1])
         """)
         for cleanup_dir in cleanup_dirs:
-            result = cleanup_script.run(cleanup_dir.format(prog=prog))
+            result = cleanup_script.run(cleanup_dir.format(name=name))
             assert result.returncode == 0
 
 
 def test_fhs_daemon_no_prog():
     with pytest.raises(ValueError) as exc_info:
         FHSDaemon()
-    assert str(exc_info.value) == 'prog must be defined for FHSDaemon'
+    assert str(exc_info.value) == 'name must be defined for FHSDaemon'
 
 
 def test_exec_worker(pyscript):
@@ -120,7 +120,7 @@ def test_exec_worker(pyscript):
         from daemonocle.helpers import ExecWorker
 
         Daemon(
-            prog='hello_world',
+            name='hello_world',
             worker=ExecWorker('/bin/echo', 'hello world'),
             detach=False,
         ).cli()
@@ -140,7 +140,7 @@ def test_exec_worker_detached(pyscript):
         from daemonocle.helpers import ExecWorker
 
         Daemon(
-            prog='goodnight_world',
+            name='goodnight_world',
             worker=ExecWorker(b'sleep', b'10'),
             pidfile='goodnight_world.pid',
         ).cli()
@@ -159,7 +159,7 @@ def test_exec_worker_detached(pyscript):
     result = script.run('status', '--json')
     assert result.returncode == 0
     status = json.loads(result.stdout.decode('ascii').rstrip('\n'))
-    assert status['prog'] == 'goodnight_world'
+    assert status['name'] == 'goodnight_world'
     assert status['pid'] == pid
     assert status['status'] in {'running', 'sleeping'}
     assert isinstance(status['uptime'], float)

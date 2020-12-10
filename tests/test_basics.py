@@ -19,7 +19,7 @@ def test_simple(pyscript):
         def worker():
             time.sleep(2)
 
-        daemon = Daemon(worker=worker, prog='foo')
+        daemon = Daemon(worker=worker, name='foo')
         daemon.do_action(sys.argv[1])
     """)
     result = script.run('start')
@@ -41,7 +41,7 @@ def test_simple(pyscript):
 
 def test_no_args_or_worker():
     daemon = Daemon()
-    assert daemon.prog == posixpath.basename(sys.argv[0])
+    assert daemon.name == posixpath.basename(sys.argv[0])
     with pytest.raises(DaemonError):
         daemon.do_action('start')
 
@@ -54,7 +54,7 @@ def test_immediate_exit(pyscript):
         def worker():
             sys.exit(42)
 
-        daemon = Daemon(worker=worker, prog='foo')
+        daemon = Daemon(worker=worker, name='foo')
         daemon.do_action('start')
     """)
     result = script.run()
@@ -71,7 +71,7 @@ def test_non_detached(pyscript):
         def worker():
             print('hello world')
 
-        daemon = Daemon(worker=worker, prog='foo', detach=False)
+        daemon = Daemon(worker=worker, name='foo', detach=False)
         daemon.do_action('start')
     """)
     result = script.run()
@@ -92,7 +92,7 @@ def test_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
 
@@ -156,7 +156,7 @@ def test_piddir(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo/foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo/foo.pid')
         daemon.do_action(sys.argv[1])
     """)
     piddir = posixpath.join(script.dirname, 'foo')
@@ -177,7 +177,7 @@ def test_broken_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
     pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
@@ -210,7 +210,7 @@ def test_stale_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
     pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
@@ -248,7 +248,7 @@ def test_stdout_and_stderr_file(pyscript):
             sys.stderr.flush()
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         stdout_file='stdout.log', stderr_file='stderr.log')
         daemon.do_action(sys.argv[1])
     """)
@@ -285,7 +285,7 @@ def test_status_uptime(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
 
         now = time.time()
         if sys.argv[1] == 'status':
@@ -331,7 +331,7 @@ def test_self_reload(pyscript):
         import os
         from daemonocle import Daemon
 
-        daemon = Daemon(prog='foo', pidfile='foo.pid', detach=False)
+        daemon = Daemon(name='foo', pidfile='foo.pid', detach=False)
 
         def worker():
             print('here is my pid: {}'.format(os.getpid()))
@@ -365,13 +365,13 @@ def test_subclass(pyscript):
         import daemonocle
 
         class MyDaemon(daemonocle.Daemon):
-            prog = '1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE'
+            name = '1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE'
 
             def __init__(self):
                 super(MyDaemon, self).__init__(detach=False)
 
             def worker(self):
-                print('I am {prog}'.format(prog=self.prog))
+                print('I am {name}'.format(name=self.name))
                 print('also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM')
 
         if __name__ == '__main__':

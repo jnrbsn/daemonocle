@@ -22,7 +22,7 @@ def test_reset_file_descriptors(pyscript):
 
         open_file = open('foo.txt', 'w+')
         close_files = bool(int(sys.argv[2])) if len(sys.argv) > 2 else False
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         workdir=os.getcwd(),
                         close_open_files=close_files)
         daemon.do_action(sys.argv[1])
@@ -71,7 +71,7 @@ def test_chrootdir(pyscript):
             with open('/banana', 'r') as f:
                 sys.stderr.write(f.read() + '\\n')
 
-        daemon = Daemon(worker=worker, prog='foo', detach=False,
+        daemon = Daemon(worker=worker, name='foo', detach=False,
                         chrootdir=os.path.join(os.getcwd(), 'foo'))
         daemon.do_action('start')
     """, chrootdir='foo')
@@ -105,7 +105,7 @@ def test_chrootdir_with_various_file_handling(pyscript):
             sys.stderr.flush()
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         detach=True, chrootdir=os.getcwd(),
                         close_open_files=True, stdout_file='stdout.log',
                         stderr_file='stderr.log')
@@ -151,7 +151,7 @@ def test_chrootdir_detach_no_output_files(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         detach=True, chrootdir=os.getcwd())
         daemon.do_action(sys.argv[1])
     """, chrootdir='.')
@@ -192,7 +192,7 @@ def test_uid_and_gid(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo/foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo/foo.pid',
                         workdir=os.getcwd(), uid={uid}, gid={gid})
         daemon.do_action(sys.argv[1])
     """.format(uid=nobody.pw_uid, gid=nobody.pw_gid))
@@ -225,7 +225,7 @@ def test_umask(pyscript):
             time.sleep(10)
 
         kwargs = {'umask': int(sys.argv[2], 8)} if len(sys.argv) > 2 else {}
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
                         workdir=os.getcwd(), **kwargs)
         daemon.do_action(sys.argv[1])
     """)
