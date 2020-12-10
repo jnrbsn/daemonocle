@@ -11,6 +11,7 @@ import sys
 import time
 from math import fsum
 
+import click
 import psutil
 
 from ._utils import (
@@ -118,32 +119,32 @@ class Daemon(object):
         self._orig_workdir = '/'
 
     @classmethod
-    def _emit_message(cls, message):
-        """Print a message to STDOUT."""
-        sys.stdout.write(message)
-        sys.stdout.flush()
+    def _echo(cls, message, stderr=False, color=None):
+        """Print a message to STDOUT or STDERR."""
+        message = click.style(message, fg=color)
+        click.echo(message, nl=False, err=stderr)
 
     @classmethod
-    def _emit_ok(cls):
+    def _echo_ok(cls):
         """Print OK for success."""
-        cls._emit_message('OK\n')
+        cls._echo('OK\n', color='green')
 
     @classmethod
-    def _emit_failed(cls):
+    def _echo_failed(cls):
         """Print FAILED on error."""
-        cls._emit_message('FAILED\n')
+        cls._echo('FAILED\n', color='red')
 
     @classmethod
-    def _emit_error(cls, message):
+    def _echo_error(cls, message):
         """Print an error message to STDERR."""
-        sys.stderr.write('ERROR: {message}\n'.format(message=message))
-        sys.stderr.flush()
+        cls._echo('ERROR: {message}\n'.format(message=message),
+                  stderr=True, color='red')
 
     @classmethod
-    def _emit_warning(cls, message):
+    def _echo_warning(cls, message):
         """Print an warning message to STDERR."""
-        sys.stderr.write('WARNING: {message}\n'.format(message=message))
-        sys.stderr.flush()
+        cls._echo('WARNING: {message}\n'.format(message=message),
+                  stderr=True, color='yellow')
 
     def _setup_dirs(self):
         """Create the various directories if necessary."""
@@ -170,7 +171,7 @@ class Daemon(object):
             try:
                 pid = int(fp.read())
             except ValueError:
-                self._emit_warning('Empty or broken PID file {pid_file}; '
+                self._echo_warning('Empty or broken PID file {pid_file}; '
                                    'removing'.format(pid_file=self.pid_file))
                 pid = None
 
@@ -459,12 +460,12 @@ class Daemon(object):
             if status[0] == pid:
                 # The child is already gone for some reason
                 exitcode = waitstatus_to_exitcode(status[1])
-                self._emit_failed()
-                self._emit_error('Child exited immediately with exit '
+                self._echo_failed()
+                self._echo_error('Child exited immediately with exit '
                                  'code {code}'.format(code=exitcode))
                 exit(exitcode)
             else:
-                self._emit_ok()
+                self._echo_ok()
                 exit(0)
 
         self._reset_file_descriptors()
@@ -529,13 +530,12 @@ class Daemon(object):
                 else:
                     # No processes were found in this process group
                     # so we can exit
-                    cls._emit_message(
-                        'All children are gone. Parent is exiting...\n')
+                    cls._echo('All children are gone. Parent is exiting...\n')
                     exit(0)
             except KeyboardInterrupt:
                 # Don't exit immediatedly on Ctrl-C, because we want to
                 # wait for the child processes to finish
-                cls._emit_message('\n')
+                cls._echo('\n')
                 continue
 
     def _shutdown(self, message=None, code=0):
@@ -606,7 +606,7 @@ class Daemon(object):
         if os.environ.get('DAEMONOCLE_RELOAD'):
             # If this is actually a reload, we need to wait for the
             # existing daemon to exit first
-            self._emit_message('Reloading {name} ... '.format(name=self.name))
+            self._echo('Reloading {name} ... '.format(name=self.name))
             # Get the parent PID before we orphan this process
             ppid = os.getppid()
             # Orhpan this process so the parent can exit
@@ -614,17 +614,17 @@ class Daemon(object):
             if (ppid is not None and
                     self._pid_is_alive(ppid, timeout=self.stop_timeout)):
                 # The process didn't exit for some reason
-                self._emit_failed()
+                self._echo_failed()
                 message = ('Previous process (PID {pid}) did NOT '
                            'exit during reload').format(pid=ppid)
-                self._emit_error(message)
+                self._echo_error(message)
                 self._shutdown(message, 1)
 
         # Check to see if the daemon is already running
         pid = self._read_pid_file()
         if pid is not None:
             # I don't think this should not be a fatal error
-            self._emit_warning('{name} already running with PID {pid}'.format(
+            self._echo_warning('{name} already running with PID {pid}'.format(
                 name=self.name, pid=pid))
             return
 
@@ -635,7 +635,7 @@ class Daemon(object):
 
         if not os.environ.get('DAEMONOCLE_RELOAD'):
             # A custom message is printed for reloading
-            self._emit_message('Starting {name} ... '.format(name=self.name))
+            self._echo('Starting {name} ... '.format(name=self.name))
 
         self._setup_environment()
 
@@ -651,7 +651,7 @@ class Daemon(object):
         signal.signal(signal.SIGTERM, self._handle_terminate)
 
         if not self.detach:
-            self._emit_ok()
+            self._echo_ok()
 
         self._run(*args, **kwargs)
 
@@ -664,47 +664,47 @@ class Daemon(object):
         pid = self._read_pid_file()
         if pid is None:
             # I don't think this should be a fatal error
-            self._emit_warning('{name} is not running'.format(name=self.name))
+            self._echo_warning('{name} is not running'.format(name=self.name))
             return
 
         timeout = timeout or self.stop_timeout
 
-        self._emit_message('Stopping {name} ... '.format(name=self.name))
+        self._echo('Stopping {name} ... '.format(name=self.name))
 
         try:
             # Try to terminate the process
             os.kill(pid, signal.SIGTERM)
         except OSError as ex:
-            self._emit_failed()
-            self._emit_error(str(ex))
+            self._echo_failed()
+            self._echo_error(str(ex))
             exit(1)
 
         if not self._pid_is_alive(pid, timeout=timeout):
-            self._emit_ok()
+            self._echo_ok()
             return
 
         # The process didn't terminate for some reason
-        self._emit_failed()
-        self._emit_error('Timed out while waiting for process (PID {pid}) '
+        self._echo_failed()
+        self._echo_error('Timed out while waiting for process (PID {pid}) '
                          'to terminate'.format(pid=pid))
 
         if force:
-            self._emit_message('Killing {name} ... '.format(name=self.name))
+            self._echo('Killing {name} ... '.format(name=self.name))
             try:
                 # Try to kill the process
                 os.kill(pid, signal.SIGKILL)
             except OSError as ex:
-                self._emit_failed()
-                self._emit_error(str(ex))
+                self._echo_failed()
+                self._echo_error(str(ex))
                 exit(1)
 
             if not self._pid_is_alive(pid, timeout=timeout):
-                self._emit_ok()
+                self._echo_ok()
                 return
 
             # The process still didn't terminate for some reason
-            self._emit_failed()
-            self._emit_error('Process (PID {pid}) did not respond to SIGKILL '
+            self._echo_failed()
+            self._echo_error('Process (PID {pid}) did not respond to SIGKILL '
                              'for some reason'.format(pid=pid))
 
         exit(1)
@@ -730,7 +730,7 @@ class Daemon(object):
                 }) + '\n'
             else:
                 message = '{name} -- not running\n'.format(name=self.name)
-            self._emit_message(message)
+            self._echo(message)
             exit(1)
 
         default_fields = {
@@ -780,7 +780,7 @@ class Daemon(object):
                 '%cpu: {cpu_percent:.1f}, %mem: {memory_percent:.1f}\n')
             message = template.format(**data)
 
-        self._emit_message(message)
+        self._echo(message)
 
     @classmethod
     def list_actions(cls):
