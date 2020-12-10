@@ -92,7 +92,7 @@ def test_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
 
@@ -156,7 +156,7 @@ def test_piddir(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo/foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo/foo.pid')
         daemon.do_action(sys.argv[1])
     """)
     piddir = posixpath.join(script.dirname, 'foo')
@@ -177,23 +177,23 @@ def test_broken_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
     # Break the PID file
-    with open(pidfile, 'wb') as f:
+    with open(pid_file, 'wb') as f:
         f.write(b'banana\n')
 
     result = script.run('status')
     assert result.returncode == 1
     assert result.stdout == b'foo -- not running\n'
-    assert result.stderr == ('WARNING: Empty or broken pidfile {pidfile}; '
+    assert result.stderr == ('WARNING: Empty or broken PID file {pid_file}; '
                              'removing\n').format(
-                                pidfile=pidfile).encode('utf8')
+                                pid_file=pid_file).encode('utf8')
 
     result = script.run('stop')
     assert result.returncode == 0
@@ -210,14 +210,14 @@ def test_stale_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         pid = int(f.read())
 
     os.kill(pid, signal.SIGKILL)
@@ -227,7 +227,7 @@ def test_stale_pidfile(pyscript):
     assert result.stdout == b'foo -- not running\n'
     assert result.stderr == b''
 
-    assert not posixpath.isfile(pidfile)
+    assert not posixpath.isfile(pid_file)
 
     result = script.run('stop')
     assert result.returncode == 0
@@ -248,11 +248,11 @@ def test_stdout_and_stderr_file(pyscript):
             sys.stderr.flush()
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
                         stdout_file='stdout.log', stderr_file='stderr.log')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     result = script.run('start')
     try:
@@ -260,7 +260,7 @@ def test_stdout_and_stderr_file(pyscript):
         assert result.stdout == b'Starting foo ... OK\n'
         assert result.stderr == b''
 
-        with open(pidfile, 'rb') as f:
+        with open(pid_file, 'rb') as f:
             proc = psutil.Process(int(f.read()))
 
         assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
@@ -285,7 +285,7 @@ def test_status_uptime(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
 
         now = time.time()
         if sys.argv[1] == 'status':
@@ -331,7 +331,7 @@ def test_self_reload(pyscript):
         import os
         from daemonocle import Daemon
 
-        daemon = Daemon(name='foo', pidfile='foo.pid', detach=False)
+        daemon = Daemon(name='foo', pid_file='foo.pid', detach=False)
 
         def worker():
             print('here is my pid: {}'.format(os.getpid()))

@@ -35,13 +35,39 @@ class Daemon(object):
     """This is the main class for creating a daemon using daemonocle."""
 
     def __init__(
-            self, worker=None, shutdown_callback=None, prog=None, pidfile=None,
-            detach=True, uid=None, gid=None, workdir='/', chrootdir=None,
-            umask=0o22, stop_timeout=10, close_open_files=False,
-            stdout_file=None, stderr_file=None, name=None):
+        self,
+        # Basic stuff
+        name=None,
+        worker=None,
+        detach=True,
+        # Paths
+        pid_file=None,
+        work_dir='/',
+        stdout_file=None,
+        stderr_file=None,
+        chroot_dir=None,
+        # Environmental stuff that most people probably won't use
+        uid=None,
+        gid=None,
+        umask=0o22,
+        close_open_files=False,
+        # Related to stopping / shutting down
+        shutdown_callback=None,
+        stop_timeout=10,
+        # Deprecated aliases
+        prog=None,
+        pidfile=None,
+        workdir='/',
+        chrootdir=None,
+    ):
         """Create a new Daemon object."""
-        # prog is deprecated in favor of name
+
+        # Deprecated aliases
         name = name or prog
+        pid_file = pid_file or pidfile
+        work_dir = work_dir or workdir
+        chroot_dir = chroot_dir or chrootdir
+
         if name is not None:
             self.name = name
         elif not getattr(self, 'name', None):
@@ -50,39 +76,42 @@ class Daemon(object):
         if worker is not None or not callable(getattr(self, 'worker', None)):
             self.worker = worker
 
-        self.shutdown_callback = shutdown_callback
-        self.pidfile = pidfile
         self.detach = detach and self._is_detach_necessary()
-        self.uid = uid if uid is not None else os.getuid()
-        self.gid = gid if gid is not None else os.getgid()
-        self.workdir = workdir
-        self.chrootdir = chrootdir
-        self.umask = umask
-        self.stop_timeout = stop_timeout
-        self.close_open_files = close_open_files
+
+        self.pid_file = pid_file
+        self.work_dir = work_dir
         self.stdout_file = stdout_file
         self.stderr_file = stderr_file
+        self.chroot_dir = chroot_dir
 
-        if self.chrootdir is not None:
-            self.chrootdir = posixpath.realpath(self.chrootdir)
-            check_dir_exists(self.chrootdir)
+        self.uid = uid if uid is not None else os.getuid()
+        self.gid = gid if gid is not None else os.getgid()
+        self.umask = umask
+        self.close_open_files = close_open_files
 
-            self.workdir = (
-                unchroot_path(self.workdir, self.chrootdir)
-                if self.workdir else self.chrootdir)
+        self.shutdown_callback = shutdown_callback
+        self.stop_timeout = stop_timeout
 
-            for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+        if self.chroot_dir is not None:
+            self.chroot_dir = posixpath.realpath(self.chroot_dir)
+            check_dir_exists(self.chroot_dir)
+
+            self.work_dir = (
+                unchroot_path(self.work_dir, self.chroot_dir)
+                if self.work_dir else self.chroot_dir)
+
+            for attr in ('pid_file', 'stdout_file', 'stderr_file'):
                 path = getattr(self, attr)
                 setattr(self, attr, (
-                    unchroot_path(path, self.chrootdir) if path else None))
+                    unchroot_path(path, self.chroot_dir) if path else None))
         else:
-            self.workdir = posixpath.realpath(self.workdir)
-            for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+            self.work_dir = posixpath.realpath(self.work_dir)
+            for attr in ('pid_file', 'stdout_file', 'stderr_file'):
                 path = getattr(self, attr)
                 if path is not None:
                     setattr(self, attr, posixpath.realpath(path))
 
-        check_dir_exists(self.workdir)
+        check_dir_exists(self.work_dir)
 
         self._pid_fd = None
         self._shutdown_complete = False
@@ -118,7 +147,7 @@ class Daemon(object):
 
     def _setup_dirs(self):
         """Create the various directories if necessary."""
-        for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+        for attr in ('pid_file', 'stdout_file', 'stderr_file'):
             file_path = getattr(self, attr)
             if file_path is None:
                 continue
@@ -128,31 +157,31 @@ class Daemon(object):
                 os.makedirs(dir_path, 0o777 & ~self.umask)
                 os.chown(dir_path, self.uid, self.gid)
 
-    def _read_pidfile(self):
+    def _read_pid_file(self):
         """Read the PID file and check to make sure it's not stale."""
-        if self.pidfile is None:
+        if self.pid_file is None:
             return None
 
-        if not posixpath.isfile(self.pidfile):
+        if not posixpath.isfile(self.pid_file):
             return None
 
         # Read the PID file
-        with open(self.pidfile, 'r') as fp:
+        with open(self.pid_file, 'r') as fp:
             try:
                 pid = int(fp.read())
             except ValueError:
-                self._emit_warning('Empty or broken pidfile {pidfile}; '
-                                   'removing'.format(pidfile=self.pidfile))
+                self._emit_warning('Empty or broken PID file {pid_file}; '
+                                   'removing'.format(pid_file=self.pid_file))
                 pid = None
 
         if pid is not None and psutil.pid_exists(pid):
             return pid
         else:
             # Remove the stale PID file
-            os.remove(self.pidfile)
+            os.remove(self.pid_file)
             return None
 
-    def _write_pidfile(self):
+    def _write_pid_file(self):
         """Create, write to, and lock the PID file."""
         flags = os.O_CREAT | os.O_RDWR | os.O_TRUNC
         try:
@@ -166,15 +195,15 @@ class Daemon(object):
             flags |= os.O_EXLOCK
         except AttributeError:
             pass
-        self._pid_fd = os.open(self.pidfile, flags, 0o666 & ~self.umask)
+        self._pid_fd = os.open(self.pid_file, flags, 0o666 & ~self.umask)
         os.write(self._pid_fd, b'%d\n' % os.getpid())
 
-    def _close_pidfile(self):
+    def _close_pid_file(self):
         """Closes and removes the PID file."""
         if self._pid_fd is not None:
             os.close(self._pid_fd)
         try:
-            os.remove(self.pidfile)
+            os.remove(self.pid_file)
         except OSError as ex:
             if ex.errno != errno.ENOENT:
                 raise
@@ -198,28 +227,28 @@ class Daemon(object):
         # the new process with the same arguments as the original
         self._orig_workdir = os.getcwd()
 
-        if self.chrootdir is not None:
+        if self.chroot_dir is not None:
             try:
                 # Change the root directory
-                os.chdir(self.chrootdir)
-                os.chroot(self.chrootdir)
+                os.chdir(self.chroot_dir)
+                os.chroot(self.chroot_dir)
             except Exception as ex:
                 raise DaemonError('Unable to change root directory '
                                   '({error})'.format(error=str(ex)))
             else:
-                self.workdir = chroot_path(self.workdir, self.chrootdir)
-                for attr in ('pidfile', 'stdout_file', 'stderr_file'):
+                self.work_dir = chroot_path(self.work_dir, self.chroot_dir)
+                for attr in ('pid_file', 'stdout_file', 'stderr_file'):
                     path = getattr(self, attr)
                     if path is None:
                         continue
-                    setattr(self, attr, chroot_path(path, self.chrootdir))
+                    setattr(self, attr, chroot_path(path, self.chroot_dir))
 
         # Prevent the process from generating a core dump
         self._prevent_core_dump()
 
         try:
             # Switch directories
-            os.chdir(self.workdir)
+            os.chdir(self.work_dir)
         except Exception as ex:
             raise DaemonError('Unable to change working directory '
                               '({error})'.format(error=str(ex)))
@@ -520,8 +549,8 @@ class Daemon(object):
             # logging and the exit code
             self.shutdown_callback(message, code)
 
-        if self.pidfile is not None:
-            self._close_pidfile()
+        if self.pid_file is not None:
+            self._close_pid_file()
 
         self._shutdown_complete = True
         exit(code)
@@ -592,7 +621,7 @@ class Daemon(object):
                 self._shutdown(message, 1)
 
         # Check to see if the daemon is already running
-        pid = self._read_pidfile()
+        pid = self._read_pid_file()
         if pid is not None:
             # I don't think this should not be a fatal error
             self._emit_warning('{name} already running with PID {pid}'.format(
@@ -613,8 +642,8 @@ class Daemon(object):
         if self.detach:
             self._detach_process()
 
-        if self.pidfile is not None:
-            self._write_pidfile()
+        if self.pid_file is not None:
+            self._write_pid_file()
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._handle_terminate)
@@ -629,10 +658,10 @@ class Daemon(object):
     @expose_action
     def stop(self, timeout=None, force=False):
         """Stop the daemon."""
-        if self.pidfile is None:
+        if self.pid_file is None:
             raise DaemonError('Cannot stop daemon without PID file')
 
-        pid = self._read_pidfile()
+        pid = self._read_pid_file()
         if pid is None:
             # I don't think this should be a fatal error
             self._emit_warning('{name} is not running'.format(name=self.name))
@@ -689,10 +718,10 @@ class Daemon(object):
     @expose_action
     def status(self, json=False, fields=None):
         """Get the status of the daemon."""
-        if self.pidfile is None:
+        if self.pid_file is None:
             raise DaemonError('Cannot get status of daemon without PID file')
 
-        pid = self._read_pidfile()
+        pid = self._read_pid_file()
         if pid is None:
             if json:
                 message = json_encode({
@@ -803,7 +832,7 @@ class Daemon(object):
 
     def reload(self):
         """Make the daemon reload itself."""
-        pid = self._read_pidfile()
+        pid = self._read_pid_file()
         if pid is None or pid != os.getpid():
             raise DaemonError(
                 'Daemon.reload() should only be called by the daemon process '

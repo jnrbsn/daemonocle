@@ -27,7 +27,7 @@ class FHSDaemon(Daemon):
 
         if prefix == '/opt':
             kwargs.update({
-                'pidfile': '/var/opt/{name}/run/{name}.pid'.format(
+                'pid_file': '/var/opt/{name}/run/{name}.pid'.format(
                     name=self.name),
                 'stdout_file': '/var/opt/{name}/log/stdout.log'.format(
                     name=self.name),
@@ -36,7 +36,7 @@ class FHSDaemon(Daemon):
             })
         elif prefix == '/usr/local':
             kwargs.update({
-                'pidfile': '/var/local/run/{name}/{name}.pid'.format(
+                'pid_file': '/var/local/run/{name}/{name}.pid'.format(
                     name=self.name),
                 'stdout_file': '/var/local/log/{name}/stdout.log'.format(
                     name=self.name),
@@ -45,7 +45,7 @@ class FHSDaemon(Daemon):
             })
         elif prefix == '/usr':
             kwargs.update({
-                'pidfile': '/var/run/{name}/{name}.pid'.format(
+                'pid_file': '/var/run/{name}/{name}.pid'.format(
                     name=self.name),
                 'stdout_file': '/var/log/{name}/stdout.log'.format(
                     name=self.name),
@@ -54,7 +54,7 @@ class FHSDaemon(Daemon):
             })
         else:
             kwargs.update({
-                'pidfile': posixpath.join(
+                'pid_file': posixpath.join(
                     prefix, 'run/{name}.pid'.format(name=self.name)),
                 'stdout_file': posixpath.join(prefix, 'log/stdout.log'),
                 'stderr_file': posixpath.join(prefix, 'log/stderr.log'),

@@ -22,16 +22,16 @@ def test_reset_file_descriptors(pyscript):
 
         open_file = open('foo.txt', 'w+')
         close_files = bool(int(sys.argv[2])) if len(sys.argv) > 2 else False
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
-                        workdir=os.getcwd(),
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        work_dir=os.getcwd(),
                         close_open_files=close_files)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.join(script.dirname, 'foo.pid')
+    pid_file = posixpath.join(script.dirname, 'foo.pid')
 
     script.run('start', '0')
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
     assert len(proc_get_open_fds(proc.pid)) >= 4
@@ -41,7 +41,7 @@ def test_reset_file_descriptors(pyscript):
 
     script.run('restart', '1')
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
     assert len(proc_get_open_fds(proc.pid)) == 3
@@ -53,7 +53,7 @@ def test_reset_file_descriptors(pyscript):
 
 
 def test_chrootdir_without_permission():
-    daemon = Daemon(worker=lambda: None, chrootdir=os.getcwd())
+    daemon = Daemon(worker=lambda: None, chroot_dir=os.getcwd())
     with pytest.raises(DaemonError) as exc_info:
         daemon.do_action('start')
     assert ('Unable to change root directory '
@@ -72,14 +72,14 @@ def test_chrootdir(pyscript):
                 sys.stderr.write(f.read() + '\\n')
 
         daemon = Daemon(worker=worker, name='foo', detach=False,
-                        chrootdir=os.path.join(os.getcwd(), 'foo'))
+                        chroot_dir=os.path.join(os.getcwd(), 'foo'))
         daemon.do_action('start')
-    """, chrootdir='foo')
+    """, chroot_dir='foo')
 
-    chrootdir = posixpath.join(script.dirname, 'foo')
+    chroot_dir = posixpath.join(script.dirname, 'foo')
 
-    os.makedirs(chrootdir)
-    with open(posixpath.join(chrootdir, 'banana'), 'w') as f:
+    os.makedirs(chroot_dir)
+    with open(posixpath.join(chroot_dir, 'banana'), 'w') as f:
         f.write('pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd')
 
     result = script.run()
@@ -105,14 +105,14 @@ def test_chrootdir_with_various_file_handling(pyscript):
             sys.stderr.flush()
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
-                        detach=True, chrootdir=os.getcwd(),
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        detach=True, chroot_dir=os.getcwd(),
                         close_open_files=True, stdout_file='stdout.log',
                         stderr_file='stderr.log')
         daemon.do_action(sys.argv[1])
-    """, chrootdir='.')
+    """, chroot_dir='.')
 
-    pidfile = posixpath.join(script.dirname, 'foo.pid')
+    pid_file = posixpath.join(script.dirname, 'foo.pid')
 
     result = script.run('start')
     try:
@@ -120,7 +120,7 @@ def test_chrootdir_with_various_file_handling(pyscript):
         assert result.stdout == b'Starting foo ... OK\n'
         assert result.stderr == b''
 
-        with open(pidfile, 'rb') as f:
+        with open(pid_file, 'rb') as f:
             proc = psutil.Process(int(f.read()))
 
         assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
@@ -151,10 +151,10 @@ def test_chrootdir_detach_no_output_files(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
-                        detach=True, chrootdir=os.getcwd())
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        detach=True, chroot_dir=os.getcwd())
         daemon.do_action(sys.argv[1])
-    """, chrootdir='.')
+    """, chroot_dir='.')
 
     result = script.run('start')
     try:
@@ -192,8 +192,8 @@ def test_uid_and_gid(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo/foo.pid',
-                        workdir=os.getcwd(), uid={uid}, gid={gid})
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo/foo.pid',
+                        work_dir=os.getcwd(), uid={uid}, gid={gid})
         daemon.do_action(sys.argv[1])
     """.format(uid=nobody.pw_uid, gid=nobody.pw_gid))
 
@@ -225,17 +225,17 @@ def test_umask(pyscript):
             time.sleep(10)
 
         kwargs = {'umask': int(sys.argv[2], 8)} if len(sys.argv) > 2 else {}
-        daemon = Daemon(worker=worker, name='foo', pidfile='foo.pid',
-                        workdir=os.getcwd(), **kwargs)
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        work_dir=os.getcwd(), **kwargs)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = posixpath.join(script.dirname, 'foo.pid')
+    pid_file = posixpath.join(script.dirname, 'foo.pid')
     testdir = posixpath.join(script.dirname, 'foo')
     testfile = posixpath.join(testdir, 'bar.txt')
 
     result = script.run('start')
     assert result.returncode == 0
-    assert os.stat(pidfile).st_mode & 0o777 == 0o644
+    assert os.stat(pid_file).st_mode & 0o777 == 0o644
     assert os.stat(testdir).st_mode & 0o777 == 0o755
     assert os.stat(testfile).st_mode & 0o777 == 0o644
 
@@ -244,7 +244,7 @@ def test_umask(pyscript):
 
     result = script.run('restart', '027')
     assert result.returncode == 0
-    assert os.stat(pidfile).st_mode & 0o777 == 0o640
+    assert os.stat(pid_file).st_mode & 0o777 == 0o640
     assert os.stat(testdir).st_mode & 0o777 == 0o750
     assert os.stat(testfile).st_mode & 0o777 == 0o640
 
@@ -253,7 +253,7 @@ def test_umask(pyscript):
 
     result = script.run('restart', '077')
     assert result.returncode == 0
-    assert os.stat(pidfile).st_mode & 0o777 == 0o600
+    assert os.stat(pid_file).st_mode & 0o777 == 0o600
     assert os.stat(testdir).st_mode & 0o777 == 0o700
     assert os.stat(testfile).st_mode & 0o777 == 0o600
 

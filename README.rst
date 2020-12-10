@@ -64,7 +64,7 @@ Here's a **really really** basic example:
     if __name__ == '__main__':
         daemon = daemonocle.Daemon(
             worker=main,
-            pidfile='/var/run/daemonocle_example.pid',
+            pid_file='/var/run/daemonocle_example.pid',
         )
         daemon.do_action(sys.argv[1])
 
@@ -96,7 +96,7 @@ And here's the same example with logging and a `Shutdown Callback`_:
         daemon = daemonocle.Daemon(
             worker=main,
             shutdown_callback=cb_shutdown,
-            pidfile='/var/run/daemonocle_example.pid',
+            pid_file='/var/run/daemonocle_example.pid',
         )
         daemon.do_action(sys.argv[1])
 
@@ -273,7 +273,7 @@ config file changes:
                 time.sleep(1)
 
     if __name__ == '__main__':
-        daemon = daemonocle.Daemon(pidfile='/var/run/daemonocle_example.pid')
+        daemon = daemonocle.Daemon(pid_file='/var/run/daemonocle_example.pid')
         fw = FileWatcher(filename='/etc/daemonocle_example.conf', daemon=daemon)
         daemon.worker = fw.watch
         daemon.do_action(sys.argv[1])
@@ -322,56 +322,32 @@ constructor signature for the class:
 .. code:: python
 
     class daemonocle.Daemon(
-        worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-        uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10,
-        close_open_files=False)
+        name=None, worker=None, detach=True,
+        pid_file=None, work_dir='/', stdout_file=None, stderr_file=None, chroot_dir=None,
+        uid=None, gid=None, umask=0o22, close_open_files=False,
+        shutdown_callback=None, stop_timeout=10)
 
 And here are descriptions of all the arguments:
 
-**worker**
-    The function that does all the work for your daemon.
-
-**shutdown_callback**
-    This will get called anytime the daemon is shutting down. It should take a ``message`` and a
-    ``code`` argument. The message is a human readable message that explains why the daemon is
-    shutting down. It might useful to log this message. The code is the exit code with which it
-    intends to exit. See `Shutdown Callback`_ for more details.
-
-**prog**
+**name**
     The name of your program to use in output messages. Default: ``os.path.basename(sys.argv[0])``
 
-**pidfile**
-    The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
-    be able to use all the features you might expect. Make sure the user your daemon is running as
-    has permission to write to the directory this file is in.
+**worker**
+    The function that does all the work for your daemon.
 
 **detach**
     Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
     for more details. Default: ``True``
 
-**uid**
-    The user ID to switch to when the daemon starts. The default is not to switch users.
+**pid_file**
+    The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
+    be able to use all the features you might expect. Make sure the user your daemon is running as
+    has permission to write to the directory this file is in.
 
-**gid**
-    The group ID to switch to when the daemon starts. The default is not to switch groups.
-
-**workdir**
+**work_dir**
     The path to a directory to change to when the daemon starts. Note that a file system cannot be
     unmounted if a process has its working directory on that file system. So if you change the
     default, be careful about what you change it to. Default: ``"/"``
-
-**chrootdir**
-    The path to a directory to set as the effective root directory when the daemon starts. The
-    default is not to do anything.
-
-**umask**
-    The file creation mask ("umask") for the process. Default: ``022``
-
-**stop_timeout**
-    Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
-
-**close_open_files**
-    Whether or not to close all open files when the daemon detaches. Default: ``False``
 
 **stdout_file**
     If provided when ``detach=True``, the STDOUT stream will be redirected (appended) to the file
@@ -380,6 +356,31 @@ And here are descriptions of all the arguments:
 **stderr_file**
     If provided when ``detach=True``, the STDERR stream will be redirected (appended) to the file
     at the given path. In non-detached mode, this argument is ignored. (new in v1.1.0)
+
+**chroot_dir**
+    The path to a directory to set as the effective root directory when the daemon starts. The
+    default is not to do anything.
+
+**uid**
+    The user ID to switch to when the daemon starts. The default is not to switch users.
+
+**gid**
+    The group ID to switch to when the daemon starts. The default is not to switch groups.
+
+**umask**
+    The file creation mask ("umask") for the process. Default: ``022``
+
+**close_open_files**
+    Whether or not to close all open files when the daemon detaches. Default: ``False``
+
+**shutdown_callback**
+    This will get called anytime the daemon is shutting down. It should take a ``message`` and a
+    ``code`` argument. The message is a human readable message that explains why the daemon is
+    shutting down. It might useful to log this message. The code is the exit code with which it
+    intends to exit. See `Shutdown Callback`_ for more details.
+
+**stop_timeout**
+    Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
 
 Actions
 ~~~~~~~
@@ -427,7 +428,7 @@ Here's an example:
     import click
     from daemonocle.cli import DaemonCLI
 
-    @click.command(cls=DaemonCLI, daemon_params={'pidfile': '/var/run/example.pid'})
+    @click.command(cls=DaemonCLI, daemon_params={'pid_file': '/var/run/example.pid'})
     def main():
         """This is my awesome daemon. It pretends to do work in the background."""
         while True:

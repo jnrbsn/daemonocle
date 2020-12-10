@@ -67,7 +67,7 @@ PyScriptResult = namedtuple(
 
 class PyScript(object):
 
-    def __init__(self, code, sudo=False, chrootdir=None):
+    def __init__(self, code, sudo=False, chroot_dir=None):
         self.sudo = sudo
         self.dirname = _make_temp_dir(needs_sudo=sudo)
         self.basename = 'script.py'
@@ -75,22 +75,22 @@ class PyScript(object):
         with open(self.path, 'wb') as f:
             f.write(textwrap.dedent(code.lstrip('\n')).encode('utf-8'))
 
-        self.chrootdir = chrootdir
-        if self.chrootdir is not None:
-            self.chrootdir = posixpath.normpath(
-                posixpath.join(self.dirname, self.chrootdir))
+        self.chroot_dir = chroot_dir
+        if self.chroot_dir is not None:
+            self.chroot_dir = posixpath.normpath(
+                posixpath.join(self.dirname, self.chroot_dir))
 
     def run(self, *args):
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
 
-        if self.chrootdir is not None:
+        if self.chroot_dir is not None:
             # The chroot messes up coverage
             cov_core_datafile = subenv.get('COV_CORE_DATAFILE')
             if cov_core_datafile:
                 cov_file_name = posixpath.basename(cov_core_datafile)
                 cov_file_dir = posixpath.join(
-                    self.chrootdir, self.dirname.lstrip('/'))
+                    self.chroot_dir, self.dirname.lstrip('/'))
                 if not posixpath.isdir(cov_file_dir):
                     os.makedirs(cov_file_dir)
                 subenv['COV_CORE_DATAFILE'] = posixpath.join(
@@ -139,8 +139,8 @@ def pyscript(request):
 
     needs_sudo = request.node.get_closest_marker('sudo') is not None
 
-    def factory(code, chrootdir=None):
-        pf = PyScript(code, sudo=needs_sudo, chrootdir=chrootdir)
+    def factory(code, chroot_dir=None):
+        pf = PyScript(code, sudo=needs_sudo, chroot_dir=chroot_dir)
         pfs.append(pf)
         return pf
 

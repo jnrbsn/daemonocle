@@ -12,7 +12,7 @@ from daemonocle.helpers import FHSDaemon
 @pytest.mark.skipif(not psutil.LINUX, reason='Only run on Linux')
 @pytest.mark.sudo
 @pytest.mark.parametrize(
-    ('prefix', 'pidfile', 'stdout_file', 'stderr_file', 'cleanup_dirs'),
+    ('prefix', 'pid_file', 'stdout_file', 'stderr_file', 'cleanup_dirs'),
     (
         (
             '/opt',
@@ -45,7 +45,7 @@ from daemonocle.helpers import FHSDaemon
     )
 )
 def test_fhs_daemon(
-        pyscript, prefix, pidfile, stdout_file, stderr_file, cleanup_dirs):
+        pyscript, prefix, pid_file, stdout_file, stderr_file, cleanup_dirs):
     name = sha256(os.urandom(1024)).hexdigest()
 
     script = pyscript("""
@@ -77,7 +77,7 @@ def test_fhs_daemon(
             'Starting {name} ... OK\n'.format(name=name))
         assert result.stderr == b''
 
-        with open(pidfile.format(name=name), 'rb') as f:
+        with open(pid_file.format(name=name), 'rb') as f:
             pid = int(f.read())
 
         result = script.run('status', '--json', '--fields=name,pid,status')
@@ -142,10 +142,10 @@ def test_exec_worker_detached(pyscript):
         Daemon(
             name='goodnight_world',
             worker=ExecWorker(b'sleep', b'10'),
-            pidfile='goodnight_world.pid',
+            pid_file='goodnight_world.pid',
         ).cli()
     """)
-    pidfile = posixpath.realpath(posixpath.join(
+    pid_file = posixpath.realpath(posixpath.join(
         script.dirname, 'goodnight_world.pid'))
 
     result = script.run('start')
@@ -153,7 +153,7 @@ def test_exec_worker_detached(pyscript):
     assert result.stdout == b'Starting goodnight_world ... OK\n'
     assert result.stderr == b''
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         pid = int(f.read())
 
     result = script.run('status', '--json')
