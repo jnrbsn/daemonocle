@@ -329,57 +329,61 @@ constructor signature for the class:
 
 And here are descriptions of all the arguments:
 
-**name**
+``name``
     The name of your program to use in output messages. Default: ``os.path.basename(sys.argv[0])``
 
-**worker**
+``worker``
     The function that does all the work for your daemon.
 
-**detach**
+``detach``
     Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
     for more details. Default: ``True``
 
-**pid_file**
+``pid_file``
     The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
     be able to use all the features you might expect. Make sure the user your daemon is running as
     has permission to write to the directory this file is in.
 
-**work_dir**
+``work_dir``
     The path to a directory to change to when the daemon starts. Note that a file system cannot be
     unmounted if a process has its working directory on that file system. So if you change the
     default, be careful about what you change it to. Default: ``"/"``
 
-**stdout_file**
+``stdout_file``
     If provided when ``detach=True``, the STDOUT stream will be redirected (appended) to the file
-    at the given path. In non-detached mode, this argument is ignored. (new in v1.1.0)
+    at the given path. In non-detached mode, this argument is ignored.
 
-**stderr_file**
+    *New in version 1.1.0.*
+
+``stderr_file``
     If provided when ``detach=True``, the STDERR stream will be redirected (appended) to the file
-    at the given path. In non-detached mode, this argument is ignored. (new in v1.1.0)
+    at the given path. In non-detached mode, this argument is ignored.
 
-**chroot_dir**
+    *New in version 1.1.0.*
+
+``chroot_dir``
     The path to a directory to set as the effective root directory when the daemon starts. The
     default is not to do anything.
 
-**uid**
-    The user ID to switch to when the daemon starts. The default is not to switch users.
+``uid``
+    The user ID to switch to when the daemon starts. The default is to not switch users.
 
-**gid**
-    The group ID to switch to when the daemon starts. The default is not to switch groups.
+``gid``
+    The group ID to switch to when the daemon starts. The default is to not switch groups.
 
-**umask**
-    The file creation mask ("umask") for the process. Default: ``022``
+``umask``
+    The file creation mask ("umask") for the process. Default: ``0o022``
 
-**close_open_files**
+``close_open_files``
     Whether or not to close all open files when the daemon detaches. Default: ``False``
 
-**shutdown_callback**
+``shutdown_callback``
     This will get called anytime the daemon is shutting down. It should take a ``message`` and a
     ``code`` argument. The message is a human readable message that explains why the daemon is
     shutting down. It might useful to log this message. The code is the exit code with which it
     intends to exit. See `Shutdown Callback`_ for more details.
 
-**stop_timeout**
+``stop_timeout``
     Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
 
 Actions
