@@ -28,7 +28,7 @@ def pytest_runtest_setup(item):
 
 
 def _make_temp_dir(needs_sudo=False):
-    if needs_sudo and sys.platform == 'darwin':
+    if needs_sudo and psutil.MACOS:
         # macOS has user-specific TMPDIRs, which don't work well
         # with tests that require changing users. So this gets a
         # global multi-user TMPDIR by using sudo.
