@@ -116,7 +116,7 @@ class DaemonCLI(click.MultiCommand):
             subcommand = click.option(
                 '--timeout', type=int, default=None,
                 help=('Number of seconds to wait for the daemon to stop. '
-                      'Overrides "stop_timeout" from daemon defition.'),
+                      'Overrides "stop_timeout" from daemon definition.'),
             )(subcommand)
         elif name == 'status':
             subcommand = click.option(
