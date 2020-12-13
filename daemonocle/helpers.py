@@ -25,6 +25,8 @@ class FHSDaemon(Daemon):
             'detach': True,
         })
 
+        prefix = posixpath.realpath(prefix)
+
         if prefix == '/opt':
             kwargs.update({
                 'pid_file': '/var/opt/{name}/run/{name}.pid'.format(
