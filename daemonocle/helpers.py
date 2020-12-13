@@ -31,35 +31,35 @@ class FHSDaemon(Daemon):
             kwargs.update({
                 'pid_file': '/var/opt/{name}/run/{name}.pid'.format(
                     name=self.name),
-                'stdout_file': '/var/opt/{name}/log/stdout.log'.format(
+                'stdout_file': '/var/opt/{name}/log/out.log'.format(
                     name=self.name),
-                'stderr_file': '/var/opt/{name}/log/stderr.log'.format(
+                'stderr_file': '/var/opt/{name}/log/err.log'.format(
                     name=self.name),
             })
         elif prefix == '/usr/local':
             kwargs.update({
                 'pid_file': '/var/local/run/{name}/{name}.pid'.format(
                     name=self.name),
-                'stdout_file': '/var/local/log/{name}/stdout.log'.format(
+                'stdout_file': '/var/local/log/{name}/out.log'.format(
                     name=self.name),
-                'stderr_file': '/var/local/log/{name}/stderr.log'.format(
+                'stderr_file': '/var/local/log/{name}/err.log'.format(
                     name=self.name),
             })
         elif prefix == '/usr':
             kwargs.update({
                 'pid_file': '/var/run/{name}/{name}.pid'.format(
                     name=self.name),
-                'stdout_file': '/var/log/{name}/stdout.log'.format(
+                'stdout_file': '/var/log/{name}/out.log'.format(
                     name=self.name),
-                'stderr_file': '/var/log/{name}/stderr.log'.format(
+                'stderr_file': '/var/log/{name}/err.log'.format(
                     name=self.name),
             })
         else:
             kwargs.update({
                 'pid_file': posixpath.join(
                     prefix, 'run/{name}.pid'.format(name=self.name)),
-                'stdout_file': posixpath.join(prefix, 'log/stdout.log'),
-                'stderr_file': posixpath.join(prefix, 'log/stderr.log'),
+                'stdout_file': posixpath.join(prefix, 'log/out.log'),
+                'stderr_file': posixpath.join(prefix, 'log/err.log'),
             })
 
         super(FHSDaemon, self).__init__(**kwargs)
