@@ -16,7 +16,8 @@ import psutil
 
 from ._utils import (
     check_dir_exists, chroot_path, exit, format_elapsed_time,
-    get_proc_group_info, json_encode, proc_get_open_fds, unchroot_path,
+    get_proc_group_children, get_proc_group_info, json_encode,
+    proc_get_open_fds, signal_number_to_name, unchroot_path,
     waitstatus_to_exitcode)
 from .exceptions import DaemonError
 
@@ -446,7 +447,7 @@ class Daemon(object):
             status = os.waitpid(pid, 0)
             exit(waitstatus_to_exitcode(status[1]))
 
-        # Become a process group and session group leader
+        # Become a session leader and process group leader
         os.setsid()
 
         # Fork again so the session group leader can exit and to ensure
@@ -490,6 +491,13 @@ class Daemon(object):
     def _fork_and_supervise_child(cls):
         """Fork a child and then watch the process group until there are
         no processes in it."""
+        # Become a process group leader if we're not already one
+        try:
+            os.setpgid(0, 0)
+        except OSError as e:
+            if e.errno != errno.EPERM:
+                raise
+
         pid = os.fork()
         if pid == 0:
             # Fork again but orphan the child this time so we'll have
@@ -501,32 +509,12 @@ class Daemon(object):
         # os.waitpid() so that the first child doesn't become a zombie
         os.waitpid(pid, 0)
 
-        # Generate a list of PIDs to exclude when checking for processes
-        # in the group (exclude all ancestors that are in the group)
-        pgid = os.getpgrp()
-        exclude_pids = set([0, os.getpid()])
-        proc = psutil.Process()
-        while os.getpgid(proc.pid) == pgid:
-            exclude_pids.add(proc.pid)
-            if proc.pid == 1:
-                break
-            proc = psutil.Process(proc.ppid())
-
         while True:
             try:
-                # Look for other processes in this process group
-                group_procs = []
-                for proc in psutil.process_iter():
-                    try:
-                        if (os.getpgid(proc.pid) == pgid and
-                                proc.pid not in exclude_pids):
-                            # We found a process in this process group
-                            group_procs.append(proc)
-                    except (psutil.NoSuchProcess, OSError):
-                        continue
-
-                if group_procs:
-                    psutil.wait_procs(group_procs, timeout=1)
+                # Look for child processes in the process group
+                proc_group_children = get_proc_group_children()
+                if proc_group_children:
+                    psutil.wait_procs(proc_group_children, timeout=1)
                 else:
                     # No processes were found in this process group
                     # so we can exit
@@ -555,16 +543,24 @@ class Daemon(object):
         self._shutdown_complete = True
         exit(code)
 
-    def _handle_terminate(self, signal_number, _):
+    def _handle_terminate(self, signal_number, frame):
         """Handle a signal to terminate."""
-        signal_names = {
-            signal.SIGINT: 'SIGINT',
-            signal.SIGQUIT: 'SIGQUIT',
-            signal.SIGTERM: 'SIGTERM',
-        }
         message = 'Terminated by {name} ({number})'.format(
-            name=signal_names[signal_number], number=signal_number)
+            name=signal_number_to_name(signal_number), number=signal_number)
         self._shutdown(message, code=-signal_number)
+
+    def _forward_signal_to_worker(self, signal_number, frame):
+        """Handle a signal by forwarding it to the worker process."""
+        pid = None
+        if self.pid_file is not None:
+            pid = self._read_pid_file()
+
+        if pid is None:
+            # If we can't find the PID of the worker, send the signal to
+            # the entire process group
+            os.killpg(os.getpgrp(), signal_number)
+        else:
+            os.kill(pid, signal_number)
 
     def _run(self, *args, **kwargs):
         """Run the worker function with some custom exception handling."""
@@ -629,6 +625,10 @@ class Daemon(object):
             return
 
         if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
+            # Setup signal handlers that forward to the worker
+            signal.signal(signal.SIGINT, self._forward_signal_to_worker)
+            signal.signal(signal.SIGQUIT, self._forward_signal_to_worker)
+            signal.signal(signal.SIGTERM, self._forward_signal_to_worker)
             # This keeps the original parent process open so that we
             # maintain control of the tty
             self._fork_and_supervise_child()

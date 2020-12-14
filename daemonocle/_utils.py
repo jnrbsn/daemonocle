@@ -3,6 +3,7 @@ import json
 import os
 import posixpath
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -59,6 +60,21 @@ def waitstatus_to_exitcode(wait_status):  # pragma: no cover
         raise ValueError('invalid wait status: {}'.format(wait_status))
 
     return exitcode
+
+
+_signal_number_to_name_map = {}
+
+
+def signal_number_to_name(signum):
+    if not _signal_number_to_name_map:
+        if sys.version_info.major >= 3:
+            for s in signal.Signals:
+                _signal_number_to_name_map[s.value] = s.name
+        else:
+            for name in dir(signal):
+                if (name.isupper() and (name[:3] == 'SIG' and name[:4] != 'SIG_')):
+                    _signal_number_to_name_map[getattr(signal, name)] = name
+    return _signal_number_to_name_map[signum]
 
 
 def check_dir_exists(path):
@@ -217,3 +233,34 @@ def get_proc_group_info(pgid, fields):
                 continue
 
     return group_info
+
+
+_proc_group_ancestor_pids = {}
+
+
+def get_proc_group_children():
+    pid = os.getpid()
+    pgid = os.getpgrp()
+
+    cache_key = (pid, pgid)
+    if cache_key in _proc_group_ancestor_pids:
+        exclude_pids = _proc_group_ancestor_pids[cache_key]
+    else:
+        exclude_pids = {0, pid}
+        proc = psutil.Process(pid)
+        while os.getpgid(proc.pid) == pgid:
+            exclude_pids.add(proc.pid)
+            if proc.pid == 1:
+                break
+            proc = psutil.Process(proc.ppid())
+        _proc_group_ancestor_pids[cache_key] = exclude_pids
+
+    group_children = []
+    for proc in psutil.process_iter():
+        try:
+            if os.getpgid(proc.pid) == pgid and proc.pid not in exclude_pids:
+                group_children.append(proc)
+        except (psutil.NoSuchProcess, OSError):
+            continue
+
+    return sorted(group_children)
