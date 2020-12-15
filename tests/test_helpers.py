@@ -9,7 +9,7 @@ import pytest
 from daemonocle.helpers import FHSDaemon
 
 
-@pytest.mark.skipif(not psutil.LINUX, reason='Only run on Linux')
+@pytest.mark.skipif(not psutil.LINUX, reason='only run on Linux')
 @pytest.mark.sudo
 @pytest.mark.parametrize(
     ('prefix', 'pid_file', 'stdout_file', 'stderr_file', 'cleanup_dirs'),
@@ -104,7 +104,9 @@ def test_fhs_daemon(
             shutil.rmtree(sys.argv[1])
         """)
         for cleanup_dir in cleanup_dirs:
-            result = cleanup_script.run(cleanup_dir.format(name=name))
+            cleanup_dir = cleanup_dir.format(name=name)
+            assert cleanup_dir != '/'  # Safety check
+            result = cleanup_script.run(cleanup_dir)
             assert result.returncode == 0
 
 

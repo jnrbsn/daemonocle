@@ -275,28 +275,20 @@ class Daemon(object):
 
     def _redirect_std_streams(self):
         """Redirect STDOUT and STDERR, and close STDIN"""
-        # Close STDIN
-        sys.stdin.close()
-        try:
-            os.close(0)
-        except OSError as e:
-            if e.errno != errno.EBADF:
-                # It's already closed
-                raise
+
+        flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+        mode = 0o666 & ~self.umask
+
+        stdout_file_fd = None
+        stderr_file_fd = None
 
         # Flush buffers
         sys.stdout.flush()
         sys.stderr.flush()
 
-        # Redirect STDOUT and STDERR
-        stdout_file_fd = None
-        stderr_file_fd = None
-
-        flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
-        mode = 0o666 & ~self.umask
-
         if self.stdout_file is not None:
             stdout_file_fd = os.open(self.stdout_file, flags, mode)
+            os.close(1)
             os.dup2(stdout_file_fd, 1)
 
         if self.stderr_file is not None:
@@ -305,6 +297,7 @@ class Daemon(object):
                 stderr_file_fd = stdout_file_fd
             else:
                 stderr_file_fd = os.open(self.stderr_file, flags, mode)
+            os.close(2)
             os.dup2(stderr_file_fd, 2)
 
         # Close the original FDs that we duplicated to FDs 1 and 2
@@ -313,25 +306,33 @@ class Daemon(object):
         if stderr_file_fd is not None and stdout_file_fd != stderr_file_fd:
             os.close(stderr_file_fd)
 
-        if self.stdout_file is None or self.stderr_file is None:
-            try:
-                devnull_fd = os.open(os.devnull, os.O_RDWR)
-            except OSError as e:
-                if e.errno == errno.ENOENT:
-                    # If we're in a chroot jail, /dev/null might not exist
-                    raise DaemonError((
-                        '"stdout_file" and "stderr_file" must be provided '
-                        'when "{devnull}" doesn\'t exist '
-                        '(e.g. in a chroot jail)'
-                    ).format(devnull=os.devnull))
-                raise
-            # If we haven't redirected STDOUT and/or STDERR elsewhere,
-            # redirect them to /dev/null
-            if self.stdout_file is None:
-                os.dup2(devnull_fd, 1)
-            if self.stderr_file is None:
-                os.dup2(devnull_fd, 2)
-            os.close(devnull_fd)
+        try:
+            devnull_fd = os.open(os.devnull, os.O_RDWR)
+        except OSError as e:
+            if e.errno == errno.ENOENT:
+                # If we're in a chroot jail, /dev/null might not exist
+                message = 'The "{devnull}" device does not exist.'
+                if self.chroot_dir is not None:
+                    message += (
+                        ' It must be created within the chroot directory '
+                        'for the daemon to function correctly.')
+                raise DaemonError(message.format(devnull=os.devnull))
+            raise
+
+        # Attach STDIN to /dev/null
+        os.close(0)
+        os.dup2(devnull_fd, 0)
+
+        # If we haven't redirected STDOUT and/or STDERR elsewhere,
+        # redirect them to /dev/null
+        if self.stdout_file is None:
+            os.close(1)
+            os.dup2(devnull_fd, 1)
+        if self.stderr_file is None:
+            os.close(2)
+            os.dup2(devnull_fd, 2)
+
+        os.close(devnull_fd)
 
     def _reset_file_descriptors(self):
         """Close open file descriptors and redirect standard streams."""

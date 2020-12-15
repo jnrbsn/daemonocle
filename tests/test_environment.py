@@ -44,7 +44,7 @@ def test_reset_file_descriptors(pyscript):
     with open(pid_file, 'rb') as f:
         proc = psutil.Process(int(f.read()))
 
-    assert len(proc_get_open_fds(proc.pid)) == 3
+    assert len(proc_get_open_fds(proc.pid)) == 4
     open_files = {posixpath.relpath(x.path, script.dirname)
                   for x in proc.open_files()}
     assert open_files == {'foo.pid'}
@@ -88,6 +88,7 @@ def test_chrootdir(pyscript):
     assert result.stderr == b'pGh1XcBKCOwqDnNkyp43qK9Ixapnd4Kd\n'
 
 
+@pytest.mark.skipif(not psutil.LINUX, reason='only run on Linux')
 @pytest.mark.sudo
 def test_chrootdir_with_various_file_handling(pyscript):
     # FIXME: This scenario doesn't completely work as expected, but this
@@ -158,17 +159,26 @@ def test_chrootdir_detach_no_output_files(pyscript):
 
     result = script.run('start')
     try:
-        assert result.returncode == 1
-        assert result.stdout == b'Starting foo ... FAILED\n'
-        assert (b'"stdout_file" and "stderr_file" must be provided'
-                in result.stderr)
-        assert (b'ERROR: Child exited immediately with exit code'
-                in result.stderr)
+        if psutil.LINUX:
+            assert result.returncode == 0
+            assert result.stdout == b'Starting foo ... OK\n'
+            assert result.stderr == b''
+        else:
+            assert result.returncode == 1
+            assert result.stdout == b'Starting foo ... FAILED\n'
+            assert (b'The "/dev/null" device does not exist.'
+                    in result.stderr)
+            assert (b'ERROR: Child exited immediately with exit code'
+                    in result.stderr)
     finally:
         result = script.run('stop')
         assert result.returncode == 0
-        assert result.stdout == b''
-        assert result.stderr == b'WARNING: foo is not running\n'
+        if psutil.LINUX:
+            assert result.stdout == b'Stopping foo ... OK\n'
+            assert result.stderr == b''
+        else:
+            assert result.stdout == b''
+            assert result.stderr == b'WARNING: foo is not running\n'
 
 
 def test_uid_and_gid_without_permission():

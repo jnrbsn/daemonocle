@@ -80,6 +80,38 @@ class PyScript(object):
             self.chroot_dir = posixpath.normpath(
                 posixpath.join(self.dirname, self.chroot_dir))
 
+    def _setup_chroot_dir(self):
+        setup_script = PyScript("""
+            import os
+            import posixpath
+            import stat
+            import sys
+
+            chroot_dir = sys.argv[1]
+            dev_dir = posixpath.join(chroot_dir, 'dev')
+            if not posixpath.isdir(dev_dir):
+                os.makedirs(dev_dir, 0o755)
+
+            devices = [
+                ('null', (1, 3)),
+                ('zero', (1, 5)),
+                ('random', (1, 8)),
+                ('urandom', (1, 9)),
+            ]
+
+            for name, device_nums in devices:
+                device_path = posixpath.join(dev_dir, name)
+                if posixpath.exists(device_path):
+                    continue
+                os.mknod(
+                    device_path,
+                    stat.S_IFCHR | 0o666,
+                    os.makedev(*device_nums),
+                )
+        """, sudo=True)
+        result = setup_script.run(self.chroot_dir)
+        assert result.returncode == 0
+
     def run(self, *args):
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
@@ -95,6 +127,9 @@ class PyScript(object):
                     os.makedirs(cov_file_dir)
                 subenv['COV_CORE_DATAFILE'] = posixpath.join(
                     self.dirname, cov_file_name)
+
+            if self.sudo and psutil.LINUX:
+                self._setup_chroot_dir()
 
         base_command = [sys.executable, self.path]
         if self.sudo:
@@ -129,6 +164,12 @@ class PyScript(object):
 
         for coverage_file in coverage_files:
             shutil.move(coverage_file, BASE_DIR)
+
+        if self.chroot_dir and self.sudo and psutil.LINUX:
+            chroot_dev_dir = posixpath.join(self.chroot_dir, 'dev')
+            assert chroot_dev_dir != '/dev'  # Safety check
+            if posixpath.exists(chroot_dev_dir):
+                subprocess.check_call(['sudo', 'rm', '-rf', chroot_dev_dir])
 
         shutil.rmtree(self.dirname)
 
