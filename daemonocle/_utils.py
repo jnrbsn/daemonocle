@@ -181,9 +181,10 @@ def proc_get_open_fds(pid=None):
             return fds
 
 
-def json_encode(data):
+def json_encode(data, pretty=False):
     return json.dumps(
-        data, separators=(', ', ': '), indent=None, sort_keys=True)
+        data, separators=(', ', ': '), indent=(2 if pretty else None),
+        sort_keys=True)
 
 
 def format_elapsed_time(seconds):
