@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from operator import attrgetter
 
 import psutil
 
@@ -265,4 +266,4 @@ def get_proc_group_children():
         except (psutil.NoSuchProcess, OSError):
             continue
 
-    return sorted(group_children)
+    return sorted(group_children, key=attrgetter('pid'))
