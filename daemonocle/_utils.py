@@ -27,10 +27,10 @@ def to_bytes(x):
 def exit(status):
     """sys.exit() wrapper with better handling of negative exit codes"""
     if isinstance(status, int):
-        status &= 0xff
         if status < 0:
             # Use the bash convention for signals
             status = 0x80 - status
+        status &= 0xff
 
     sys.exit(status)
 

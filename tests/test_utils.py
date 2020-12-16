@@ -99,3 +99,36 @@ def test_proc_get_open_fds_fallbacks_other_proc(temp_dir, monkeypatch):
     finally:
         proc.terminate()
         proc.wait()
+
+
+def test_exit(pyscript):
+    result = pyscript("""
+        from daemonocle._utils import exit
+        exit(0)
+    """).run()
+    assert result.returncode == 0
+
+    result = pyscript("""
+        from daemonocle._utils import exit
+        exit(42)
+    """).run()
+    assert result.returncode == 42
+
+    result = pyscript("""
+        from daemonocle._utils import exit
+        exit(9999)
+    """).run()
+    assert result.returncode == 9999 & 0xff
+
+    result = pyscript("""
+        from daemonocle._utils import exit
+        exit(-15)
+    """).run()
+    assert result.returncode == 128 + 15
+
+    result = pyscript("""
+        from daemonocle._utils import exit
+        exit('27Quj7FzhWRVidZHygXUtE1WNcVGGxiTEAP')
+    """).run()
+    assert result.returncode == 1
+    assert result.stderr == b'27Quj7FzhWRVidZHygXUtE1WNcVGGxiTEAP\n'
