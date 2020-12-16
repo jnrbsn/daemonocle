@@ -229,9 +229,9 @@ You can even get JSON output if you call the action like this:
 
     daemon.do_action('status', json=True)
 
-If you use the `click <http://click.pocoo.org/>`_ integration described below, this option is
-available via the ``--json`` CLI option. You can also just get a ``dict`` directly and
-programatically without printing it to STDOUT by calling ``Daemon.get_status()``.
+If you use the `Integration with click`_ described below, this option is available via the
+``--json`` CLI option. You can also just get a ``dict`` directly and programatically without
+printing it to STDOUT by calling ``Daemon.get_status()``.
 
 Slightly Smarter ``restart`` Action
 +++++++++++++++++++++++++++++++++++
@@ -517,7 +517,7 @@ just like click usually does.
 This integration is entirely optional. daemonocle doesn't enforce any sort of argument parsing. You
 can use argparse, optparse, or just plain ``sys.argv`` if you want.
 
-Starting with version 1.2.0, you can also use a couple different shorter ways of invoking the CLI.
+Starting with version 1.1.0, you can also use a couple different shorter ways of invoking the CLI.
 
 Like this:
 
@@ -527,7 +527,8 @@ Like this:
 
     @cli(pid_file='/var/run/example.pid')
     def main():
-        # do stuff
+        """Do stuff"""
+        ...
 
     if __name__ == '__main__':
         main()
@@ -539,7 +540,8 @@ Or like this:
     from daemonocle import Daemon
 
     def main():
-        # do stuff
+        """Do stuff"""
+        ...
 
     if __name__ == '__main__':
         daemon = Daemon(worker=main, pid_file='/var/run/example.pid')
