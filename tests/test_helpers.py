@@ -128,7 +128,7 @@ def test_multi_daemon(pyscript):
             sys.stdout.flush()
             sys.stderr.write('27rUarEY9XRHap294GZ5s3B2oc248XcFuSQ\\n')
             sys.stderr.flush()
-            time.sleep(60)
+            time.sleep(30)
 
         MultiDaemon(
             name='foo_worker_{n:0>4}',
@@ -189,7 +189,7 @@ def test_multi_daemon(pyscript):
         # Try to create a large amount of status data
         result = script.run(
             'status', '--json',
-            '--fields=pid,name,cpu_times,cwd,environ,io_counters,open_files')
+            '--fields=pid,name,cmdline,cwd,environ,open_files')
         assert result.returncode == 0
         statuses = json.loads(result.stdout.decode('ascii').rstrip('\n'))
         for n, status in enumerate(statuses):
