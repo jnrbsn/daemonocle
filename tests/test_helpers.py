@@ -128,7 +128,7 @@ def test_multi_daemon(pyscript):
             sys.stdout.flush()
             sys.stderr.write('27rUarEY9XRHap294GZ5s3B2oc248XcFuSQ\\n')
             sys.stderr.flush()
-            time.sleep(10)
+            time.sleep(60)
 
         MultiDaemon(
             name='foo_worker_{n:0>4}',
