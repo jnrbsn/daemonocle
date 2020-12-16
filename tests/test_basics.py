@@ -1,7 +1,11 @@
 import os
+import posixpath
 import re
 import signal
+import sys
+import time
 
+import psutil
 import pytest
 
 from daemonocle import Daemon, DaemonError
@@ -16,7 +20,7 @@ def test_simple(pyscript):
         def worker():
             time.sleep(2)
 
-        daemon = Daemon(worker=worker, prog='foo')
+        daemon = Daemon(worker=worker, name='foo')
         daemon.do_action(sys.argv[1])
     """)
     result = script.run('start')
@@ -36,8 +40,9 @@ def test_simple(pyscript):
     assert b'DaemonError: Cannot stop daemon without PID file' in result.stderr
 
 
-def test_no_worker():
+def test_no_args_or_worker():
     daemon = Daemon()
+    assert daemon.name == posixpath.basename(sys.argv[0])
     with pytest.raises(DaemonError):
         daemon.do_action('start')
 
@@ -50,11 +55,11 @@ def test_immediate_exit(pyscript):
         def worker():
             sys.exit(42)
 
-        daemon = Daemon(worker=worker, prog='foo')
+        daemon = Daemon(worker=worker, name='foo')
         daemon.do_action('start')
     """)
     result = script.run()
-    assert result.returncode == 0
+    assert result.returncode == 42
     assert result.stdout == b'Starting foo ... FAILED\n'
     assert result.stderr == (b'ERROR: Child exited immediately with '
                              b'exit code 42\n')
@@ -67,7 +72,7 @@ def test_non_detached(pyscript):
         def worker():
             print('hello world')
 
-        daemon = Daemon(worker=worker, prog='foo', detach=False)
+        daemon = Daemon(worker=worker, name='foo', detach=False)
         daemon.do_action('start')
     """)
     result = script.run()
@@ -75,6 +80,59 @@ def test_non_detached(pyscript):
     assert result.stdout == (
         b'Starting foo ... OK\n'
         b'hello world\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
+def test_non_detached_signal_forwarding_without_pid_file(pyscript):
+    script = pyscript("""
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            print('hello world')
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', detach=False)
+        daemon.do_action('start')
+    """)
+    script.start()
+    time.sleep(2)
+    os.kill(script.process.pid, signal.SIGTERM)
+    result = script.join()
+
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'Received signal SIGTERM (15). Forwarding to child...\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
+def test_non_detached_signal_forwarding_with_pid_file(pyscript):
+    script = pyscript("""
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            print('hello world')
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', detach=False,
+                        pid_file='foo.pid')
+        daemon.do_action('start')
+    """)
+    script.start()
+    time.sleep(2)
+    os.kill(script.process.pid, signal.SIGTERM)
+    result = script.join()
+
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'Received signal SIGTERM (15). Forwarding to child...\n'
         b'All children are gone. Parent is exiting...\n')
     assert result.stderr == b''
 
@@ -88,7 +146,7 @@ def test_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
 
@@ -152,15 +210,15 @@ def test_piddir(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo/foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo/foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    piddir = os.path.join(script.dirname, 'foo')
+    piddir = posixpath.join(script.dirname, 'foo')
     script.run('start')
-    assert os.path.isdir(piddir)
+    assert posixpath.isdir(piddir)
     assert os.listdir(piddir) == ['foo.pid']
     script.run('stop')
-    assert os.path.isdir(piddir)
+    assert posixpath.isdir(piddir)
     assert os.listdir(piddir) == []
 
 
@@ -173,23 +231,23 @@ def test_broken_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
     # Break the PID file
-    with open(pidfile, 'wb') as f:
+    with open(pid_file, 'wb') as f:
         f.write(b'banana\n')
 
     result = script.run('status')
     assert result.returncode == 1
     assert result.stdout == b'foo -- not running\n'
-    assert result.stderr == ('WARNING: Empty or broken pidfile {pidfile}; '
+    assert result.stderr == ('WARNING: Empty or broken PID file {pid_file}; '
                              'removing\n').format(
-                                pidfile=pidfile).encode('utf8')
+                                pid_file=pid_file).encode('utf8')
 
     result = script.run('stop')
     assert result.returncode == 0
@@ -206,14 +264,14 @@ def test_stale_pidfile(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         pid = int(f.read())
 
     os.kill(pid, signal.SIGKILL)
@@ -223,12 +281,94 @@ def test_stale_pidfile(pyscript):
     assert result.stdout == b'foo -- not running\n'
     assert result.stderr == b''
 
-    assert not os.path.isfile(pidfile)
+    assert not posixpath.isfile(pid_file)
 
     result = script.run('stop')
     assert result.returncode == 0
     assert result.stdout == b''
     assert result.stderr == b'WARNING: foo is not running\n'
+
+
+def test_stdout_and_stderr_file(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stdout.write('1ohhyMgprGBsSgPF7R388fs1VYtF3UyxCzp\\n')
+            sys.stdout.flush()
+            sys.stderr.write('1PMQcUFXReMo8V4jRK8sRkixpGm6TVb1KJJ\\n')
+            sys.stderr.flush()
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        stdout_file='stdout.log', stderr_file='stderr.log')
+        daemon.do_action(sys.argv[1])
+    """)
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... OK\n'
+        assert result.stderr == b''
+
+        with open(pid_file, 'rb') as f:
+            proc = psutil.Process(int(f.read()))
+
+        assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
+
+        with open(posixpath.join(script.dirname, 'stdout.log'), 'rb') as f:
+            assert f.read() == b'1ohhyMgprGBsSgPF7R388fs1VYtF3UyxCzp\n'
+        with open(posixpath.join(script.dirname, 'stderr.log'), 'rb') as f:
+            assert f.read() == b'1PMQcUFXReMo8V4jRK8sRkixpGm6TVb1KJJ\n'
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo ... OK\n'
+        assert result.stderr == b''
+
+
+def test_stdout_and_stderr_file_same_path(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stdout.write('1XPRq1KToN6Wz1y1PeR2dj8BNrnjiPTPaup\\n')
+            sys.stdout.flush()
+            sys.stderr.write('29qM7pLGqgwwhGAVrWxnce14AsQicSWHnwE\\n')
+            sys.stderr.flush()
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        stdout_file='output.log', stderr_file='output.log')
+        daemon.do_action(sys.argv[1])
+    """)
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... OK\n'
+        assert result.stderr == b''
+
+        with open(pid_file, 'rb') as f:
+            proc = psutil.Process(int(f.read()))
+
+        assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
+
+        with open(posixpath.join(script.dirname, 'output.log'), 'rb') as f:
+            assert f.read() == (
+                b'1XPRq1KToN6Wz1y1PeR2dj8BNrnjiPTPaup\n'
+                b'29qM7pLGqgwwhGAVrWxnce14AsQicSWHnwE\n')
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo ... OK\n'
+        assert result.stderr == b''
 
 
 def test_status_uptime(pyscript):
@@ -240,7 +380,7 @@ def test_status_uptime(pyscript):
         def worker():
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid')
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid')
 
         now = time.time()
         if sys.argv[1] == 'status':
@@ -286,7 +426,7 @@ def test_self_reload(pyscript):
         import os
         from daemonocle import Daemon
 
-        daemon = Daemon(prog='foo', pidfile='foo.pid', detach=False)
+        daemon = Daemon(name='foo', pid_file='foo.pid', detach=False)
 
         def worker():
             print('here is my pid: {}'.format(os.getpid()))
@@ -313,3 +453,30 @@ def test_self_reload(pyscript):
     with pytest.raises(DaemonError):
         # Don't allow calling reload like this
         daemon.reload()
+
+
+def test_subclass(pyscript):
+    script = pyscript("""
+        import daemonocle
+
+        class MyDaemon(daemonocle.Daemon):
+            name = '1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE'
+
+            def __init__(self):
+                super(MyDaemon, self).__init__(detach=False)
+
+            def worker(self):
+                print('I am {name}'.format(name=self.name))
+                print('also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM')
+
+        if __name__ == '__main__':
+            MyDaemon().do_action('start')
+    """)
+    result = script.run()
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting 1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE ... OK\n'
+        b'I am 1jizQzV9STeyLTDgL3kiESxnMMRtk9HvGJE\n'
+        b'also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''

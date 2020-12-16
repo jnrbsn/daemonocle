@@ -1,6 +1,39 @@
 Release History
 ---------------
 
+v1.1.0 (not yet released)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Official support for Python 3.9
+* Added back official support for Python 3.5
+* Increased test coverage to over 95%.
+* All tests now pass on macOS (Intel) and the GitHub Actions build now runs on
+  macOS 10.15 in addition to Ubuntu.
+* Fixed the ``close_open_files`` option to be much more reliable and consistent
+  across different platforms.
+* Fixed a race condition with the self-reload functionality where the PID file
+  of the parent process was being deleted while the child process was trying to
+  read it.
+* Added ``stdout_file`` and ``stderr_file`` arguments to ``Daemon``. If these
+  arguments are provided when ``detach=True``, STDOUT and STDERR will be
+  redirected to these files. In non-detached mode, these arguments are ignored.
+* When ``chrootdir`` is given, all other paths are now always considered
+  relative to the chroot directory, even with a leading slash.
+* Actions can now take arbitrary arguments, and (on Python 3) CLI options are
+  auto-generated from the function signature. The auto-generated CLI options
+  work best when your action's function signature contains type annotations and
+  default values where applicable.
+* Added ``timeout`` and ``force`` arguments to the built-in ``stop`` action,
+  accessible from the CLI as ``--timeout`` and ``--force``.
+* Added ``json`` and ``fields`` arguments to the built-in ``status`` action,
+  accessible from the CLI as ``--json`` and ``--fields``.
+* Added colored output when the output stream is attached to a terminal.
+* Fixed a bug where the daemon wouldn't respond properly to ``docker stop``
+  when running in a docker container.
+* The worker function can now be a method called ``worker`` on a ``Daemon``
+  subclass.
+* Some more secret experimental stuff. :)
+
 v1.0.2 (2020-07-12)
 ~~~~~~~~~~~~~~~~~~~
 

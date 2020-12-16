@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 import signal
 
@@ -22,18 +23,18 @@ def test_sys_exit_message(pyscript):
             with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
                 f.write(message)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
                         shutdown_callback=shutdown_callback)
         daemon.do_action('start')
     """)
     script.run()
 
-    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+    with open(posixpath.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
     psutil.Process(pid).wait()
 
-    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+    with open(posixpath.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Exiting with message: goodbye world'
 
 
@@ -53,18 +54,18 @@ def test_uncaught_exception(pyscript):
             with open(os.path.join(orig_dir, 'foo.log'), 'w') as f:
                 f.write(message)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
                         shutdown_callback=shutdown_callback)
         daemon.do_action('start')
     """)
     script.run()
 
-    with open(os.path.join(script.dirname, 'foo.pid'), 'rb') as f:
+    with open(posixpath.join(script.dirname, 'foo.pid'), 'rb') as f:
         pid = int(f.read())
 
     psutil.Process(pid).wait()
 
-    with open(os.path.join(script.dirname, 'foo.log'), 'r') as f:
+    with open(posixpath.join(script.dirname, 'foo.log'), 'r') as f:
         assert f.read() == 'Dying due to unhandled ValueError: banana'
 
     script = pyscript("""
@@ -73,7 +74,7 @@ def test_uncaught_exception(pyscript):
         def worker():
             raise ValueError('banana')
 
-        daemon = Daemon(worker=worker, prog='foo', detach=False)
+        daemon = Daemon(worker=worker, name='foo', detach=False)
         daemon.do_action('start')
     """)
     result = script.run()
@@ -94,15 +95,15 @@ def test_unresponsive_stop(pyscript):
             signal.signal(signal.SIGTERM, handle_sigterm)
             time.sleep(10)
 
-        daemon = Daemon(worker=worker, prog='foo', pidfile='foo.pid',
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
                         stop_timeout=1)
         daemon.do_action(sys.argv[1])
     """)
-    pidfile = os.path.realpath(os.path.join(script.dirname, 'foo.pid'))
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
 
     script.run('start')
 
-    with open(pidfile, 'rb') as f:
+    with open(pid_file, 'rb') as f:
         pid = int(f.read())
 
     result = script.run('stop')
@@ -114,7 +115,7 @@ def test_unresponsive_stop(pyscript):
 
     assert psutil.pid_exists(pid)
 
-    os.kill(pid, signal.SIGKILL)
+    os.kill(pid, signal.SIGQUIT)
 
     try:
         proc = psutil.Process(pid)
@@ -139,7 +140,7 @@ def test_unresponsive_reload(pyscript):
                 time.sleep(2)
 
         daemon = Daemon(worker=worker, shutdown_callback=shutdown_callback,
-                        prog='foo', pidfile='foo.pid', detach=False,
+                        name='foo', pid_file='foo.pid', detach=False,
                         stop_timeout=1)
 
         daemon.do_action('start')

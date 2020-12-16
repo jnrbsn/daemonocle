@@ -1,12 +1,15 @@
 name: build
 on: [push]
+defaults:
+  run:
+    shell: bash
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        python-version: [2.7, 3.6, 3.7, 3.8]
+        os: [ubuntu-latest, macos-10.15]
+        python-version: [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
     steps:
     - name: Check out repo
       uses: actions/checkout@v2
@@ -16,21 +19,51 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        python -m pip install -U pip setuptools
+        python -m pip install -U pip setuptools wheel
         pip install -e .[test]
     - name: Lint with flake8
       run: |
         flake8 daemonocle/ tests/ setup.py
-    - name: Test with pytest (without coverage)
-      if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.8'
+    - name: Test with pytest
+      env:
+        GITHUB_MATRIX_OS: ${{ matrix.os }}
+        GITHUB_MATRIX_PYTHON_VERSION: ${{ matrix.python-version }}
       run: |
-        pytest -v tests/
-    - name: Test with pytest (with coverage)
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
+        export COVERAGE_FILE=".coverage.${GITHUB_MATRIX_OS//[^0-9A-Za-z]/_}_py${GITHUB_MATRIX_PYTHON_VERSION//./}"
+        pytest -lv --cov=daemonocle --cov-report=term-missing tests/
+        printf "\t%s/daemonocle\n" "$PWD" > coverage-path.txt
+    - name: Upload coverage as artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
+        path: |
+          .coverage.*
+          coverage-path.txt
+  coverage:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out repo
+      uses: actions/checkout@v2
+    - name: Set up Python 3.x
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+    - name: Install dependencies
       run: |
-        pytest -v --cov=daemonocle --cov-report=term-missing tests/
+        python -m pip install -U pip setuptools wheel
+        pip install -e .[test]
+    - name: Download coverage artifacts
+      uses: actions/download-artifact@v2
+    - name: Combine coverage
+      run: |
+        printf "[paths]\nsource =\n\tdaemonocle\n" >> .coveragerc
+        find . -type f -name coverage-path.txt -exec cat {} \; | sort | uniq >> .coveragerc
+        echo ".coveragerc:"
+        cat .coveragerc
+        find . -type f -name '.coverage.*' | xargs coverage combine
+        coverage report --show-missing
     - name: Coveralls
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |

@@ -5,14 +5,25 @@ daemonocle
 
 -----
 
-.. image:: https://github.com/jnrbsn/daemonocle/workflows/build/badge.svg?branch=master
+.. image:: https://img.shields.io/github/workflow/status/jnrbsn/daemonocle/build/master?style=flat-square
     :target: https://github.com/jnrbsn/daemonocle/actions?query=workflow:build+branch:master
 
-.. image:: https://coveralls.io/repos/github/jnrbsn/daemonocle/badge.svg?branch=master
+.. image:: https://img.shields.io/coveralls/jnrbsn/daemonocle/master.svg?style=flat-square
     :target: https://coveralls.io/github/jnrbsn/daemonocle
 
-.. image:: https://img.shields.io/pypi/pyversions/daemonocle
+.. image:: https://img.shields.io/pypi/v/daemonocle.svg?style=flat-square
+    :target: https://pypi.org/project/daemonocle/
 
+.. image:: https://img.shields.io/pypi/pyversions/daemonocle?style=flat-square
+    :target: https://docs.python.org/whatsnew/index.html
+
+.. image:: https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20unix-lightgrey?style=flat-square
+    :target: https://en.wikipedia.org/wiki/Unix-like
+
+.. image:: https://img.shields.io/github/license/jnrbsn/daemonocle?style=flat-square
+    :target: https://github.com/jnrbsn/daemonocle/blob/master/LICENSE
+
+|
 daemonocle is a library for creating your own Unix-style daemons written in Python. It solves many
 problems that other daemon libraries have and provides some really useful features you don't often
 see in other daemons.
@@ -53,7 +64,7 @@ Here's a **really really** basic example:
     if __name__ == '__main__':
         daemon = daemonocle.Daemon(
             worker=main,
-            pidfile='/var/run/daemonocle_example.pid',
+            pid_file='/var/run/daemonocle_example.pid',
         )
         daemon.do_action(sys.argv[1])
 
@@ -85,7 +96,7 @@ And here's the same example with logging and a `Shutdown Callback`_:
         daemon = daemonocle.Daemon(
             worker=main,
             shutdown_callback=cb_shutdown,
-            pidfile='/var/run/daemonocle_example.pid',
+            pid_file='/var/run/daemonocle_example.pid',
         )
         daemon.do_action(sys.argv[1])
 
@@ -212,6 +223,16 @@ It might look something like this::
     user@host:~$ python example.py status
     example.py -- pid: 1234, status: running, uptime: 12d 3h 4m, %cpu: 12.4, %mem: 4.5
 
+You can even get JSON output if you call the action like this:
+
+.. code:: python
+
+    daemon.do_action('status', json=True)
+
+If you use the `Integration with click`_ described below, this option is available via the
+``--json`` CLI option. You can also just get a ``dict`` directly and programatically without
+printing it to STDOUT by calling ``Daemon.get_status()``.
+
 Slightly Smarter ``restart`` Action
 +++++++++++++++++++++++++++++++++++
 
@@ -262,7 +283,7 @@ config file changes:
                 time.sleep(1)
 
     if __name__ == '__main__':
-        daemon = daemonocle.Daemon(pidfile='/var/run/daemonocle_example.pid')
+        daemon = daemonocle.Daemon(pid_file='/var/run/daemonocle_example.pid')
         fw = FileWatcher(filename='/etc/daemonocle_example.conf', daemon=daemon)
         daemon.worker = fw.watch
         daemon.do_action(sys.argv[1])
@@ -311,56 +332,69 @@ constructor signature for the class:
 .. code:: python
 
     class daemonocle.Daemon(
-        worker=None, shutdown_callback=None, prog=None, pidfile=None, detach=True,
-        uid=None, gid=None, workdir='/', chrootdir=None, umask=022, stop_timeout=10,
-        close_open_files=False)
+        name=None, worker=None, detach=True,
+        pid_file=None, work_dir='/', stdout_file=None, stderr_file=None, chroot_dir=None,
+        uid=None, gid=None, umask=0o22, close_open_files=False,
+        shutdown_callback=None, stop_timeout=10)
 
 And here are descriptions of all the arguments:
 
-**worker**
+``name``
+    The name of your program to use in output messages. Default: ``os.path.basename(sys.argv[0])``
+
+``worker``
     The function that does all the work for your daemon.
 
-**shutdown_callback**
+``detach``
+    Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
+    for more details. Default: ``True``
+
+``pid_file``
+    The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
+    be able to use all the features you might expect. Make sure the user your daemon is running as
+    has permission to write to the directory this file is in.
+
+``work_dir``
+    The path to a directory to change to when the daemon starts. Note that a file system cannot be
+    unmounted if a process has its working directory on that file system. So if you change the
+    default, be careful about what you change it to. Default: ``"/"``
+
+``stdout_file``
+    If provided when ``detach=True``, the STDOUT stream will be redirected (appended) to the file
+    at the given path. In non-detached mode, this argument is ignored.
+
+    *New in version 1.1.0.*
+
+``stderr_file``
+    If provided when ``detach=True``, the STDERR stream will be redirected (appended) to the file
+    at the given path. In non-detached mode, this argument is ignored.
+
+    *New in version 1.1.0.*
+
+``chroot_dir``
+    The path to a directory to set as the effective root directory when the daemon starts. The
+    default is not to do anything.
+
+``uid``
+    The user ID to switch to when the daemon starts. The default is to not switch users.
+
+``gid``
+    The group ID to switch to when the daemon starts. The default is to not switch groups.
+
+``umask``
+    The file creation mask ("umask") for the process. Default: ``0o022``
+
+``close_open_files``
+    Whether or not to close all open files when the daemon detaches. Default: ``False``
+
+``shutdown_callback``
     This will get called anytime the daemon is shutting down. It should take a ``message`` and a
     ``code`` argument. The message is a human readable message that explains why the daemon is
     shutting down. It might useful to log this message. The code is the exit code with which it
     intends to exit. See `Shutdown Callback`_ for more details.
 
-**prog**
-    The name of your program to use in output messages. Default: ``os.path.basename(sys.argv[0])``
-
-**pidfile**
-    The path to a PID file to use. It's not required to use a PID file, but if you don't, you won't
-    be able to use all the features you might expect. Make sure the user your daemon is running as
-    has permission to write to the directory this file is in.
-
-**detach**
-    Whether or not to detach from the terminal and go into the background. See `Non-Detached Mode`_
-    for more details. Default: ``True``
-
-**uid**
-    The user ID to switch to when the daemon starts. The default is not to switch users.
-
-**gid**
-    The group ID to switch to when the daemon starts. The default is not to switch groups.
-
-**workdir**
-    The path to a directory to change to when the daemon starts. Note that a file system cannot be
-    unmounted if a process has its working directory on that file system. So if you change the
-    default, be careful about what you change it to. Default: ``"/"``
-
-**chrootdir**
-    The path to a directory to set as the effective root directory when the daemon starts. The
-    default is not to do anything.
-
-**umask**
-    The file creation mask ("umask") for the process. Default: ``022``
-
-**stop_timeout**
+``stop_timeout``
     Number of seconds to wait for the daemon to stop before throwing an error. Default: ``10``
-
-**close_open_files**
-    Whether or not to close all open files when the daemon detaches. Default: ``False``
 
 Actions
 ~~~~~~~
@@ -389,11 +423,11 @@ Here's an example:
 Then, if you did the basic ``daemon.do_action(sys.argv[1])`` like in all the examples above, you can
 call your action with a command like ``python example.py full-status``.
 
-Integration with mitsuhiko's click
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Integration with click
+~~~~~~~~~~~~~~~~~~~~~~
 
-daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "composable
-command line utility". The integration is in the form of a custom command class
+daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "Command Line
+Interface Creation Kit". The integration is in the form of a custom command class
 ``daemonocle.cli.DaemonCLI`` that you can use in conjunction with the ``@click.command()`` decorator
 to automatically generate a command line interface with subcommands for all your actions. It also
 automatically daemonizes the decorated function. The decorated function becomes the worker, and the
@@ -408,7 +442,7 @@ Here's an example:
     import click
     from daemonocle.cli import DaemonCLI
 
-    @click.command(cls=DaemonCLI, daemon_params={'pidfile': '/var/run/example.pid'})
+    @click.command(cls=DaemonCLI, daemon_params={'pid_file': '/var/run/example.pid'})
     def main():
         """This is my awesome daemon. It pretends to do work in the background."""
         while True:
@@ -417,10 +451,10 @@ Here's an example:
     if __name__ == '__main__':
         main()
 
-Running this example would look something like this::
+Here are all the help pages for the default actions::
 
     user@host:~$ python example.py --help
-    Usage: example.py [<options>] <command> [<args>]...
+    Usage: example.py [OPTIONS] COMMAND [ARGS]...
 
       This is my awesome daemon. It pretends to do work in the background.
 
@@ -432,14 +466,48 @@ Running this example would look something like this::
       stop     Stop the daemon.
       restart  Stop then start the daemon.
       status   Get the status of the daemon.
+
     user@host:~$ python example.py start --help
-    Usage: example.py start [<options>]
+    Usage: example.py start [OPTIONS]
 
       Start the daemon.
 
     Options:
       --debug  Do NOT detach and run in the background.
       --help   Show this message and exit.
+
+    user@host:~$ python example.py stop --help
+    Usage: example.py stop [OPTIONS]
+
+      Stop the daemon.
+
+    Options:
+      --timeout INTEGER  Number of seconds to wait for the daemon to stop.
+                         Overrides "stop_timeout" from daemon definition.
+      --force            Kill the daemon uncleanly if the timeout is reached.
+      --help             Show this message and exit.
+
+    user@host:~$ python example.py restart --help
+    Usage: example.py restart [OPTIONS]
+
+      Stop then start the daemon.
+
+    Options:
+      --timeout INTEGER  Number of seconds to wait for the daemon to stop.
+                         Overrides "stop_timeout" from daemon definition.
+      --force            Kill the daemon forcefully after the timeout.
+      --debug            Do NOT detach and run in the background.
+      --help             Show this message and exit.
+
+    user@host:~$ python example.py status --help
+    Usage: example.py status [OPTIONS]
+
+      Get the status of the daemon.
+
+    Options:
+      --json         Show the status in JSON format.
+      --fields TEXT  Comma-separated list of process info fields to display.
+      --help         Show this message and exit.
 
 The ``daemonocle.cli.DaemonCLI`` class also accepts a ``daemon_class`` argument that can be a
 subclass of ``daemonocle.Daemon``. It will use your custom class, automatically create subcommands
@@ -448,6 +516,39 @@ just like click usually does.
 
 This integration is entirely optional. daemonocle doesn't enforce any sort of argument parsing. You
 can use argparse, optparse, or just plain ``sys.argv`` if you want.
+
+Starting with version 1.1.0, you can also use a couple different shorter ways of invoking the CLI.
+
+Like this:
+
+.. code:: python
+
+    from daemonocle.cli import cli
+
+    @cli(pid_file='/var/run/example.pid')
+    def main():
+        """Do stuff"""
+        ...
+
+    if __name__ == '__main__':
+        main()
+
+Or like this:
+
+.. code:: python
+
+    from daemonocle import Daemon
+
+    def main():
+        """Do stuff"""
+        ...
+
+    if __name__ == '__main__':
+        daemon = Daemon(worker=main, pid_file='/var/run/example.pid')
+        daemon.cli()
+
+The above two examples are equivalent. Use whichever way works best for you.
+
 
 Bugs, Requests, Questions, etc.
 -------------------------------
