@@ -8,6 +8,7 @@ except ImportError:
 
 from daemonocle._utils import to_bytes
 from daemonocle.core import Daemon
+from daemonocle.exceptions import DaemonError
 
 
 class FHSDaemon(Daemon):
@@ -18,7 +19,7 @@ class FHSDaemon(Daemon):
         if name is not None:
             self.name = name
         elif not getattr(self, 'name', None):
-            raise ValueError('name must be defined for FHSDaemon')
+            raise DaemonError('name must be defined for FHSDaemon')
 
         kwargs.update({
             'chrootdir': None,

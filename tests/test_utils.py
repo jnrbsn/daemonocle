@@ -5,8 +5,8 @@ import subprocess
 
 import pytest
 
+from daemonocle import DaemonEnvironmentError
 from daemonocle._utils import check_dir_exists, proc_get_open_fds
-from daemonocle.exceptions import DaemonEnvironmentError
 
 
 def test_check_dir_exists(temp_dir):

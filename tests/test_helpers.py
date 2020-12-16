@@ -6,6 +6,7 @@ from hashlib import sha256
 import psutil
 import pytest
 
+from daemonocle import DaemonError
 from daemonocle.helpers import FHSDaemon
 
 
@@ -111,7 +112,7 @@ def test_fhs_daemon(
 
 
 def test_fhs_daemon_no_prog():
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(DaemonError) as exc_info:
         FHSDaemon()
     assert str(exc_info.value) == 'name must be defined for FHSDaemon'
 

@@ -5,9 +5,8 @@ from pwd import getpwnam
 import psutil
 import pytest
 
-from daemonocle import Daemon, DaemonError
+from daemonocle import Daemon, DaemonEnvironmentError, DaemonError
 from daemonocle._utils import proc_get_open_fds
-from daemonocle.exceptions import DaemonEnvironmentError
 
 
 def test_reset_file_descriptors(pyscript):
