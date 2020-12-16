@@ -103,21 +103,22 @@ class DaemonCLI(click.MultiCommand):
         def subcommand(*args, **kwargs):
             return action(*args, **kwargs)
 
-        if name in {'start', 'restart'}:
-            subcommand = click.option(
-                '--debug', is_flag=True,
-                help='Do NOT detach and run in the background.',
-            )(subcommand)
-        elif name in {'stop', 'restart'}:
-            subcommand = click.option(
-                '--force', is_flag=True,
-                help='Kill the daemon uncleanly if the timeout is reached.',
-            )(subcommand)
-            subcommand = click.option(
-                '--timeout', type=int, default=None,
-                help=('Number of seconds to wait for the daemon to stop. '
-                      'Overrides "stop_timeout" from daemon definition.'),
-            )(subcommand)
+        if name in {'start', 'stop', 'restart'}:
+            if name in {'start', 'restart'}:
+                subcommand = click.option(
+                    '--debug', is_flag=True,
+                    help='Do NOT detach and run in the background.',
+                )(subcommand)
+            if name in {'stop', 'restart'}:
+                subcommand = click.option(
+                    '--force', is_flag=True,
+                    help='Kill the daemon forcefully after the timeout.',
+                )(subcommand)
+                subcommand = click.option(
+                    '--timeout', type=int, default=None,
+                    help=('Number of seconds to wait for the daemon to stop. '
+                          'Overrides "stop_timeout" from daemon definition.'),
+                )(subcommand)
         elif name == 'status':
             subcommand = click.option(
                 '--fields', type=str, default=None,
