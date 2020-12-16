@@ -3,6 +3,7 @@ import posixpath
 import re
 import signal
 import sys
+import time
 
 import psutil
 import pytest
@@ -79,6 +80,59 @@ def test_non_detached(pyscript):
     assert result.stdout == (
         b'Starting foo ... OK\n'
         b'hello world\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
+def test_non_detached_signal_forwarding_without_pid_file(pyscript):
+    script = pyscript("""
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            print('hello world')
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', detach=False)
+        daemon.do_action('start')
+    """)
+    script.start()
+    time.sleep(2)
+    os.kill(script.process.pid, signal.SIGTERM)
+    result = script.join()
+
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'Received signal SIGTERM (15). Forwarding to child...\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
+
+
+def test_non_detached_signal_forwarding_with_pid_file(pyscript):
+    script = pyscript("""
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            print('hello world')
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', detach=False,
+                        pid_file='foo.pid')
+        daemon.do_action('start')
+    """)
+    script.start()
+    time.sleep(2)
+    os.kill(script.process.pid, signal.SIGTERM)
+    result = script.join()
+
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'Starting foo ... OK\n'
+        b'hello world\n'
+        b'Received signal SIGTERM (15). Forwarding to child...\n'
         b'All children are gone. Parent is exiting...\n')
     assert result.stderr == b''
 

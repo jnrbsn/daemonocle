@@ -572,10 +572,19 @@ class Daemon(object):
         if self.pid_file is not None:
             pid = self._read_pid_file()
 
+        self._echo((
+            'Received signal {name} ({number}). Forwarding to child...\n'
+        ).format(
+            name=signal_number_to_name(signal_number),
+            number=signal_number,
+        ))
+
         if pid is None:
             # If we can't find the PID of the worker, send the signal to
-            # the entire process group
-            os.killpg(os.getpgrp(), signal_number)
+            # all of this process's children in the process group.
+            proc_group_children = get_proc_group_children()
+            for proc in proc_group_children:
+                os.kill(proc.pid, signal_number)
         else:
             os.kill(pid, signal_number)
 

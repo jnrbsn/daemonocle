@@ -80,6 +80,8 @@ class PyScript(object):
             self.chroot_dir = posixpath.normpath(
                 posixpath.join(self.dirname, self.chroot_dir))
 
+        self.process = None
+
     def _setup_chroot_dir(self):
         setup_script = PyScript("""
             import os
@@ -112,7 +114,11 @@ class PyScript(object):
         result = setup_script.run(self.chroot_dir)
         assert result.returncode == 0
 
-    def run(self, *args):
+    def start(self, *args):
+        if self.process is not None:
+            raise RuntimeError(
+                'Process already started (PID {})'.format(self.process.pid))
+
         subenv = os.environ.copy()
         subenv['PYTHONUNBUFFERED'] = 'x'
 
@@ -135,12 +141,22 @@ class PyScript(object):
         if self.sudo:
             base_command = ['sudo', '-E'] + base_command
 
-        proc = subprocess.Popen(
+        self.process = subprocess.Popen(
             base_command + list(args), cwd=self.dirname, env=subenv,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate()
 
-        return PyScriptResult(stdout, stderr, proc.pid, proc.returncode)
+        return self.process
+
+    def join(self):
+        stdout, stderr = self.process.communicate()
+        result = PyScriptResult(
+            stdout, stderr, self.process.pid, self.process.returncode)
+        self.process = None
+        return result
+
+    def run(self, *args):
+        self.start(*args)
+        return self.join()
 
     def teardown(self):
         procs = []
