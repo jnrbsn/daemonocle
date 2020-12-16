@@ -179,7 +179,7 @@ def test_multi_daemon(pyscript):
         assert len(pgids) == 4
         assert set(pids) == pgids
 
-        result = script.run('status', '--json')
+        result = script.run('status', '--json', '--fields=pid,name')
         assert result.returncode == 0
         statuses = json.loads(result.stdout.decode('ascii').rstrip('\n'))
         for n, status in enumerate(statuses):
@@ -224,24 +224,35 @@ def test_multi_daemon(pyscript):
 
 def test_multi_daemon_basic(pyscript):
     script = pyscript("""
+        import sys
         import time
         from daemonocle.helpers import MultiDaemon
 
         def worker():
             time.sleep(10)
 
-        MultiDaemon(
+        multi_daemon = MultiDaemon(
             name='foo_{n}',
             worker=worker,
             pid_file='foo.{n}.pid',
             num_workers=2,
-        ).cli()
+        )
+        multi_daemon.do_action(sys.argv[1])
     """)
 
     result = script.run('start')
     try:
         assert result.returncode == 0
         assert result.stdout == (
+            b'Starting foo_0 ... OK\n'
+            b'Starting foo_1 ... OK\n')
+        assert result.stderr == b''
+
+        result = script.run('restart')
+        assert result.returncode == 0
+        assert result.stdout == (
+            b'Stopping foo_0 ... OK\n'
+            b'Stopping foo_1 ... OK\n'
             b'Starting foo_0 ... OK\n'
             b'Starting foo_1 ... OK\n')
         assert result.stderr == b''
