@@ -276,6 +276,47 @@ def test_stdout_and_stderr_file(pyscript):
         assert result.stderr == b''
 
 
+def test_stdout_and_stderr_file_same_path(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle import Daemon
+
+        def worker():
+            sys.stdout.write('1XPRq1KToN6Wz1y1PeR2dj8BNrnjiPTPaup\\n')
+            sys.stdout.flush()
+            sys.stderr.write('29qM7pLGqgwwhGAVrWxnce14AsQicSWHnwE\\n')
+            sys.stderr.flush()
+            time.sleep(10)
+
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        stdout_file='output.log', stderr_file='output.log')
+        daemon.do_action(sys.argv[1])
+    """)
+    pid_file = posixpath.realpath(posixpath.join(script.dirname, 'foo.pid'))
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo ... OK\n'
+        assert result.stderr == b''
+
+        with open(pid_file, 'rb') as f:
+            proc = psutil.Process(int(f.read()))
+
+        assert proc.status() in {psutil.STATUS_RUNNING, psutil.STATUS_SLEEPING}
+
+        with open(posixpath.join(script.dirname, 'output.log'), 'rb') as f:
+            assert f.read() == (
+                b'1XPRq1KToN6Wz1y1PeR2dj8BNrnjiPTPaup\n'
+                b'29qM7pLGqgwwhGAVrWxnce14AsQicSWHnwE\n')
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo ... OK\n'
+        assert result.stderr == b''
+
+
 def test_status_uptime(pyscript):
     script = pyscript("""
         import sys
