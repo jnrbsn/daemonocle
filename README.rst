@@ -223,6 +223,16 @@ It might look something like this::
     user@host:~$ python example.py status
     example.py -- pid: 1234, status: running, uptime: 12d 3h 4m, %cpu: 12.4, %mem: 4.5
 
+You can even get JSON output if you call the action like this:
+
+.. code:: python
+
+    daemon.do_action('status', json=True)
+
+If you use the `click <http://click.pocoo.org/>`_ integration described below, this option is
+available via the ``--json`` CLI option. You can also just get a ``dict`` directly and
+programatically without printing it to STDOUT by calling ``Daemon.get_status()``.
+
 Slightly Smarter ``restart`` Action
 +++++++++++++++++++++++++++++++++++
 
@@ -413,11 +423,11 @@ Here's an example:
 Then, if you did the basic ``daemon.do_action(sys.argv[1])`` like in all the examples above, you can
 call your action with a command like ``python example.py full-status``.
 
-Integration with mitsuhiko's click
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Integration with click
+~~~~~~~~~~~~~~~~~~~~~~
 
-daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "composable
-command line utility". The integration is in the form of a custom command class
+daemonocle also provides an integration with `click <http://click.pocoo.org/>`_, the "Command Line
+Interface Creation Kit". The integration is in the form of a custom command class
 ``daemonocle.cli.DaemonCLI`` that you can use in conjunction with the ``@click.command()`` decorator
 to automatically generate a command line interface with subcommands for all your actions. It also
 automatically daemonizes the decorated function. The decorated function becomes the worker, and the
@@ -441,10 +451,10 @@ Here's an example:
     if __name__ == '__main__':
         main()
 
-Running this example would look something like this::
+Here are all the help pages for the default actions::
 
     user@host:~$ python example.py --help
-    Usage: example.py [<options>] <command> [<args>]...
+    Usage: example.py [OPTIONS] COMMAND [ARGS]...
 
       This is my awesome daemon. It pretends to do work in the background.
 
@@ -456,14 +466,48 @@ Running this example would look something like this::
       stop     Stop the daemon.
       restart  Stop then start the daemon.
       status   Get the status of the daemon.
+
     user@host:~$ python example.py start --help
-    Usage: example.py start [<options>]
+    Usage: example.py start [OPTIONS]
 
       Start the daemon.
 
     Options:
       --debug  Do NOT detach and run in the background.
       --help   Show this message and exit.
+
+    user@host:~$ python example.py stop --help
+    Usage: example.py stop [OPTIONS]
+
+      Stop the daemon.
+
+    Options:
+      --timeout INTEGER  Number of seconds to wait for the daemon to stop.
+                         Overrides "stop_timeout" from daemon definition.
+      --force            Kill the daemon uncleanly if the timeout is reached.
+      --help             Show this message and exit.
+
+    user@host:~$ python example.py restart --help
+    Usage: example.py restart [OPTIONS]
+
+      Stop then start the daemon.
+
+    Options:
+      --timeout INTEGER  Number of seconds to wait for the daemon to stop.
+                         Overrides "stop_timeout" from daemon definition.
+      --force            Kill the daemon forcefully after the timeout.
+      --debug            Do NOT detach and run in the background.
+      --help             Show this message and exit.
+
+    user@host:~$ python example.py status --help
+    Usage: example.py status [OPTIONS]
+
+      Get the status of the daemon.
+
+    Options:
+      --json         Show the status in JSON format.
+      --fields TEXT  Comma-separated list of process info fields to display.
+      --help         Show this message and exit.
 
 The ``daemonocle.cli.DaemonCLI`` class also accepts a ``daemon_class`` argument that can be a
 subclass of ``daemonocle.Daemon``. It will use your custom class, automatically create subcommands
@@ -472,6 +516,37 @@ just like click usually does.
 
 This integration is entirely optional. daemonocle doesn't enforce any sort of argument parsing. You
 can use argparse, optparse, or just plain ``sys.argv`` if you want.
+
+Starting with version 1.2.0, you can also use a couple different shorter ways of invoking the CLI.
+
+Like this:
+
+.. code:: python
+
+    from daemonocle.cli import cli
+
+    @cli(pid_file='/var/run/example.pid')
+    def main():
+        # do stuff
+
+    if __name__ == '__main__':
+        main()
+
+Or like this:
+
+.. code:: python
+
+    from daemonocle import Daemon
+
+    def main():
+        # do stuff
+
+    if __name__ == '__main__':
+        daemon = Daemon(worker=main, pid_file='/var/run/example.pid')
+        daemon.cli()
+
+The above two examples are equivalent. Use whichever way works best for you.
+
 
 Bugs, Requests, Questions, etc.
 -------------------------------
