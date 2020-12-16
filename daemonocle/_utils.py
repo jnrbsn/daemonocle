@@ -211,14 +211,8 @@ def get_proc_info(proc, fields):
     return proc.as_dict(attrs=fields)
 
 
-def get_proc_group_info(pgid, fields):
-    group_procs = []
-    for proc in psutil.process_iter():
-        try:
-            if os.getpgid(proc.pid) == pgid and proc.pid != 0:
-                group_procs.append(proc)
-        except (psutil.Error, OSError):
-            continue
+def get_proc_group_info(pid, fields):
+    group_procs = get_proc_group_children(pid, include_self=True)
 
     if len(group_procs) == 1:
         return {group_procs[0].pid: get_proc_info(group_procs[0], fields)}
@@ -241,9 +235,10 @@ def get_proc_group_info(pgid, fields):
 _proc_group_ancestor_pids = {}
 
 
-def get_proc_group_children():
-    pid = os.getpid()
-    pgid = os.getpgrp()
+def get_proc_group_children(pid=None, include_self=False):
+    if pid is None:
+        pid = os.getpid()
+    pgid = os.getpgid(pid)
 
     cache_key = (pid, pgid)
     if cache_key in _proc_group_ancestor_pids:
@@ -265,5 +260,8 @@ def get_proc_group_children():
                 group_children.append(proc)
         except (psutil.NoSuchProcess, OSError):
             continue
+
+    if include_self:
+        group_children.append(psutil.Process(pid))
 
     return sorted(group_children, key=attrgetter('pid'))

@@ -118,6 +118,8 @@ class Daemon(object):
         self._pid_fd = None
         self._shutdown_complete = False
         self._orig_workdir = '/'
+        # Experimental feature
+        self._multi = False
 
     @classmethod
     def _echo(cls, message, stderr=False, color=None):
@@ -146,6 +148,13 @@ class Daemon(object):
         """Print an warning message to STDERR."""
         cls._echo('WARNING: {message}\n'.format(message=message),
                   stderr=True, color='yellow')
+
+    def _maybe_exit(self, exitcode=0):
+        """Exit with or return the given exit code (multi mode)."""
+        if self._multi:
+            return exitcode
+        else:
+            exit(exitcode)
 
     def _setup_dirs(self):
         """Create the various directories if necessary."""
@@ -439,17 +448,18 @@ class Daemon(object):
     def _detach_process(self):
         """Detach the process via the standard double-fork method with
         some extra magic."""
-        # First fork to return control to the shell
-        pid = os.fork()
-        if pid > 0:
-            # Wait for the first child, because it's going to wait and
-            # check to make sure the second child is actually running
-            # before exiting
-            status = os.waitpid(pid, 0)
-            exit(waitstatus_to_exitcode(status[1]))
+        if not self._multi:
+            # First fork to return control to the shell
+            pid = os.fork()
+            if pid > 0:
+                # Wait for the first child, because it's going to wait and
+                # check to make sure the second child is actually running
+                # before exiting
+                status = os.waitpid(pid, 0)
+                exit(waitstatus_to_exitcode(status[1]))
 
-        # Become a session leader and process group leader
-        os.setsid()
+            # Become a session leader and process group leader
+            os.setsid()
 
         # Fork again so the session group leader can exit and to ensure
         # we can never regain a controlling terminal
@@ -465,12 +475,18 @@ class Daemon(object):
                 self._echo_failed()
                 self._echo_error('Child exited immediately with exit '
                                  'code {code}'.format(code=exitcode))
-                exit(exitcode)
             else:
                 self._echo_ok()
-                exit(0)
+                exitcode = 0
+            return self._maybe_exit(exitcode)
+        elif self._multi:
+            # In multi mode, make the worker process a process group
+            # leader since all workers will be in the same session.
+            os.setpgid(0, 0)
 
         self._reset_file_descriptors()
+
+        return None
 
     @classmethod
     def _orphan_this_process(cls, wait_for_parent=False):
@@ -641,7 +657,9 @@ class Daemon(object):
         self._setup_environment()
 
         if self.detach:
-            self._detach_process()
+            parent_exitcode = self._detach_process()
+            if parent_exitcode is not None:
+                return self._maybe_exit(parent_exitcode)
 
         if self.pid_file is not None:
             self._write_pid_file()
@@ -666,7 +684,7 @@ class Daemon(object):
         if pid is None:
             # I don't think this should be a fatal error
             self._echo_warning('{name} is not running'.format(name=self.name))
-            return
+            return 0
 
         timeout = timeout or self.stop_timeout
 
@@ -678,11 +696,11 @@ class Daemon(object):
         except OSError as ex:
             self._echo_failed()
             self._echo_error(str(ex))
-            exit(1)
+            return self._maybe_exit(1)
 
         if not self._pid_is_alive(pid, timeout=timeout):
             self._echo_ok()
-            return
+            return 0
 
         # The process didn't terminate for some reason
         self._echo_failed()
@@ -697,18 +715,18 @@ class Daemon(object):
             except OSError as ex:
                 self._echo_failed()
                 self._echo_error(str(ex))
-                exit(1)
+                return self._maybe_exit(1)
 
             if not self._pid_is_alive(pid, timeout=timeout):
                 self._echo_ok()
-                return
+                return 0
 
             # The process still didn't terminate for some reason
             self._echo_failed()
             self._echo_error('Process (PID {pid}) did not respond to SIGKILL '
                              'for some reason'.format(pid=pid))
 
-        exit(1)
+        return self._maybe_exit(1)
 
     @expose_action
     def restart(self, timeout=None, force=False, debug=False, *args, **kwargs):
@@ -716,27 +734,21 @@ class Daemon(object):
         self.stop(timeout=timeout, force=force)
         self.start(debug=debug, *args, **kwargs)
 
-    @expose_action
-    def status(self, json=False, fields=None):
-        """Get the status of the daemon."""
+    def get_status(self, fields=None):
+        """Return a dict representing the status of the daemon."""
         if self.pid_file is None:
             raise DaemonError('Cannot get status of daemon without PID file')
 
         pid = self._read_pid_file()
         if pid is None:
-            if json:
-                message = json_encode({
-                    'name': self.name,
-                    'status': psutil.STATUS_DEAD,
-                }) + '\n'
-            else:
-                message = '{name} -- not running\n'.format(name=self.name)
-            self._echo(message)
-            exit(1)
+            return {
+                'name': self.name,
+                'status': psutil.STATUS_DEAD,
+            }
 
         default_fields = {
             'name', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
-        if json and fields:
+        if fields:
             if isinstance(fields, text):
                 fields = {f.strip() for f in fields.split(',')}
             else:
@@ -748,40 +760,55 @@ class Daemon(object):
         if 'uptime' in fields:
             psutil_fields.add('create_time')
         proc_group_info = get_proc_group_info(
-            os.getpgid(pid),
+            pid,
             fields=psutil_fields)
 
-        data = {}
+        status = {}
         for field in fields:
-            data[field] = proc_group_info[pid].get(field)
+            status[field] = proc_group_info[pid].get(field)
 
         if 'cpu_percent' in fields:
-            data['cpu_percent'] = round(fsum(
+            status['cpu_percent'] = round(fsum(
                 v.get('cpu_percent', 0.0) for v in proc_group_info.values()
             ), 3)
         if 'memory_percent' in fields:
-            data['memory_percent'] = round(fsum(
+            status['memory_percent'] = round(fsum(
                 v.get('memory_percent', 0.0) for v in proc_group_info.values()
             ), 3)
 
         if 'name' in fields:
-            data['name'] = self.name
+            status['name'] = self.name
         if 'group_num_procs' in fields:
-            data['group_num_procs'] = len(proc_group_info)
+            status['group_num_procs'] = len(proc_group_info)
         if 'uptime' in fields:
-            data['uptime'] = round(
+            status['uptime'] = round(
                 time.time() - proc_group_info[pid]['create_time'], 3)
 
+        return status
+
+    @expose_action
+    def status(self, json=False, fields=None):
+        """Get the status of the daemon."""
+        status = self.get_status(fields=fields)
+        is_dead = (status.get('status') == psutil.STATUS_DEAD)
+
         if json:
-            message = json_encode(data) + '\n'
+            message = json_encode(status) + '\n'
+        elif is_dead:
+            message = '{name} -- not running\n'.format(name=self.name)
         else:
-            data['uptime'] = format_elapsed_time(data['uptime'])
+            status['uptime'] = format_elapsed_time(status['uptime'])
             template = (
                 '{name} -- pid: {pid}, status: {status}, uptime: {uptime}, '
                 '%cpu: {cpu_percent:.1f}, %mem: {memory_percent:.1f}\n')
-            message = template.format(**data)
+            message = template.format(**status)
 
         self._echo(message)
+
+        if is_dead:
+            return self._maybe_exit(1)
+        else:
+            return 0
 
     @classmethod
     def list_actions(cls):
