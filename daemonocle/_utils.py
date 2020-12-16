@@ -133,7 +133,7 @@ def proc_get_open_fds(pid=None):
         # We're not on Linux (maybe macOS?)
         try:
             # Try getting FDs from lsof
-            cmd = ['lsof', '-a', '-d0-65535', '-p', str(pid)]
+            cmd = ['lsof', '-a', '-d0-8192', '-p', str(pid)]
             p = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # We'll obviously need to exclude these below
@@ -144,7 +144,7 @@ def proc_get_open_fds(pid=None):
                     returncode=p.returncode, cmd=cmd, output=stdout + stderr)
         except Exception as e:
             # lsof failed for some reason. If this is the current process,
-            # try to find any FDs up to 1024 (to be somewhat conservative).
+            # try to find any FDs up to 8192 (to be somewhat conservative).
             # If it's not the current process, just fail.
             if pid != os.getpid():
                 raise DaemonEnvironmentError(
@@ -152,7 +152,7 @@ def proc_get_open_fds(pid=None):
                     '({error})'.format(error=str(e)))
 
             fds = []
-            for fd in range(1024):
+            for fd in range(8192):
                 try:
                     os.fstat(fd)
                 except OSError as e:
