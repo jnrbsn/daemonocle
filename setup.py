@@ -35,7 +35,7 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
     ],
-    keywords='daemon daemonize fork linux unix cli',
+    keywords='daemon daemonize fork linux macos bsd unix posix cli',
     packages=['daemonocle'],
     install_requires=[
         'click',
