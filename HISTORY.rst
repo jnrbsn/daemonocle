@@ -1,7 +1,7 @@
 Release History
 ---------------
 
-v1.1.0 (not yet released)
+v1.1.0 (2020-12-16)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Official support for Python 3.9
