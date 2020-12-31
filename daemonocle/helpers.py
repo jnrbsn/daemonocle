@@ -67,6 +67,18 @@ class FHSDaemon(Daemon):
             kwargs[key] = kwargs[key].format(
                 name=self.name, log_prefix=log_prefix)
 
+        if 'work_dir' in kwargs:
+            work_dir = posixpath.realpath(kwargs['work_dir'])
+            if work_dir == prefix and not posixpath.isdir(work_dir):
+                # Normally, the work_dir is required to exist, but if the
+                # work_dir is the same as the prefix, automatically create it
+                # if it doesn't exist.
+                umask = kwargs.get('umask', 0o22)
+                uid = kwargs.get('uid', os.getuid())
+                gid = kwargs.get('gid', os.getgid())
+                os.makedirs(work_dir, 0o777 & ~umask)
+                os.chown(work_dir, uid, gid)
+
         super(FHSDaemon, self).__init__(**kwargs)
 
 

@@ -134,6 +134,7 @@ def test_multi_daemon(pyscript):
             name='foo_worker_{n:0>4}',
             worker=worker,
             prefix='foo/{n:0>4}',
+            work_dir='foo/{n:0>4}',
             num_workers=4,
             daemon_cls=FHSDaemon,
         ).cli()
@@ -162,6 +163,10 @@ def test_multi_daemon(pyscript):
 
             sids.add(os.getsid(pid))
             pgids.add(os.getpgid(pid))
+
+            proc = psutil.Process(pid)
+            assert proc.cwd() == posixpath.join(
+                script.dirname, 'foo/{n:0>4}'.format(n=n))
 
             stdout_file = posixpath.join(
                 script.dirname, 'foo/{n:0>4}/log/out.log'.format(n=n))
