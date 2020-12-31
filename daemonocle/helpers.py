@@ -139,10 +139,14 @@ class MultiDaemon(object):
         # be in its own process group (handled in Daemon class).
         os.setsid()
 
-        ctx = click.get_current_context()
+        try:
+            ctx = click.get_current_context()
+        except RuntimeError:
+            ctx = None
 
         for daemon in self._daemons:
-            ctx.obj = daemon
+            if ctx is not None:
+                ctx.obj = daemon
             daemon.start(debug=debug, *args, **kwargs)
 
     def stop(self, timeout=None, force=False):
