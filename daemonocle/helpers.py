@@ -99,8 +99,8 @@ class MultiDaemon(object):
                     kwargs[key] = kwargs[key].format(n=n)
 
             daemon = daemon_cls(**kwargs)
-            # Turn on hidden flag
-            daemon._multi = True
+            # Enable multi mode
+            daemon.worker_id = n
 
             if daemon.pid_file is None:
                 raise DaemonError('pid_file must be defined for MultiDaemon')

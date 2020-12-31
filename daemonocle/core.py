@@ -119,7 +119,7 @@ class Daemon(object):
         self._shutdown_complete = False
         self._orig_workdir = '/'
         # Experimental feature
-        self._multi = False
+        self.worker_id = None
 
     @classmethod
     def _echo(cls, message, stderr=False, color=None):
@@ -151,7 +151,7 @@ class Daemon(object):
 
     def _maybe_exit(self, exitcode=0):
         """Exit with or return the given exit code (multi mode)."""
-        if self._multi:
+        if self.worker_id is not None:
             return exitcode
         else:
             exit(exitcode)
@@ -448,7 +448,7 @@ class Daemon(object):
     def _detach_process(self):
         """Detach the process via the standard double-fork method with
         some extra magic."""
-        if not self._multi:
+        if self.worker_id is None:
             # First fork to return control to the shell
             pid = os.fork()
             if pid > 0:
@@ -479,7 +479,7 @@ class Daemon(object):
                 self._echo_ok()
                 exitcode = 0
             return self._maybe_exit(exitcode)
-        elif self._multi:
+        elif self.worker_id is not None:
             # In multi mode, make the worker process a process group
             # leader since all workers will be in the same session.
             os.setpgid(0, 0)
