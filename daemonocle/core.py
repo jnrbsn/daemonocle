@@ -708,6 +708,8 @@ class Daemon(object):
             return self._maybe_exit(1)
 
         if not self._pid_is_alive(pid, timeout=timeout):
+            # Clean up the PID file if the worker didn't do it
+            self._close_pid_file()
             self._echo_ok()
             return 0
 
@@ -727,6 +729,8 @@ class Daemon(object):
                 return self._maybe_exit(1)
 
             if not self._pid_is_alive(pid, timeout=timeout):
+                # Clean up the PID file if the worker didn't do it
+                self._close_pid_file()
                 self._echo_ok()
                 return 0
 
