@@ -21,7 +21,8 @@ class FHSDaemon(Daemon):
     """A Daemon subclass that makes opinionatedly complies with the
     Filesystem Hierarchy Standard"""
 
-    def __init__(self, name=None, prefix='/opt', **kwargs):
+    def __init__(
+            self, name=None, prefix='/opt', log_prefix='', **kwargs):
         if name is not None:
             self.name = name
         elif not getattr(self, 'name', None):
@@ -36,38 +37,35 @@ class FHSDaemon(Daemon):
 
         if prefix == '/opt':
             kwargs.update({
-                'pid_file': '/var/opt/{name}/run/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/opt/{name}/log/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/opt/{name}/log/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/opt/{name}/run/{name}.pid',
+                'stdout_file': '/var/opt/{name}/log/{log_prefix}out.log',
+                'stderr_file': '/var/opt/{name}/log/{log_prefix}err.log',
             })
         elif prefix == '/usr/local':
             kwargs.update({
-                'pid_file': '/var/local/run/{name}/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/local/log/{name}/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/local/log/{name}/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/local/run/{name}/{name}.pid',
+                'stdout_file': '/var/local/log/{name}/{log_prefix}out.log',
+                'stderr_file': '/var/local/log/{name}/{log_prefix}err.log',
             })
         elif prefix == '/usr':
             kwargs.update({
-                'pid_file': '/var/run/{name}/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/log/{name}/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/log/{name}/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/run/{name}/{name}.pid',
+                'stdout_file': '/var/log/{name}/{log_prefix}out.log',
+                'stderr_file': '/var/log/{name}/{log_prefix}err.log',
             })
         else:
             kwargs.update({
-                'pid_file': posixpath.join(
-                    prefix, 'run/{name}.pid'.format(name=self.name)),
-                'stdout_file': posixpath.join(prefix, 'log/out.log'),
-                'stderr_file': posixpath.join(prefix, 'log/err.log'),
+                'pid_file': posixpath.join(prefix, 'run/{name}.pid'),
+                'stdout_file': posixpath.join(
+                    prefix, 'log/{log_prefix}out.log'),
+                'stderr_file': posixpath.join(
+                    prefix, 'log/{log_prefix}err.log'),
             })
+
+        # Format paths
+        for key in ('pid_file', 'stdout_file', 'stderr_file'):
+            kwargs[key] = kwargs[key].format(
+                name=self.name, log_prefix=log_prefix)
 
         super(FHSDaemon, self).__init__(**kwargs)
 
