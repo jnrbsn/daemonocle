@@ -11,6 +11,7 @@ setup(
     version='1.1.1.dev0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
+    long_description_content_type='text/x-rst',
     url='http://github.com/jnrbsn/daemonocle',
     author='Jonathan Robson',
     author_email='jnrbsn@gmail.com',
