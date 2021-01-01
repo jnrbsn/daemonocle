@@ -1,11 +1,12 @@
 Release History
 ---------------
 
-v1.1.1 (not yet released)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+v1.1.1 (2020-12-31)
+~~~~~~~~~~~~~~~~~~~
 
 * The ``stop`` action will now clean up the PID file if the worker didn't
   do it for some reason.
+* A few bug fixes to some undocumented experimental features. :)
 
 v1.1.0 (2020-12-16)
 ~~~~~~~~~~~~~~~~~~~
