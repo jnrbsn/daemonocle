@@ -21,7 +21,8 @@ class FHSDaemon(Daemon):
     """A Daemon subclass that makes opinionatedly complies with the
     Filesystem Hierarchy Standard"""
 
-    def __init__(self, name=None, prefix='/opt', **kwargs):
+    def __init__(
+            self, name=None, prefix='/opt', log_prefix='', **kwargs):
         if name is not None:
             self.name = name
         elif not getattr(self, 'name', None):
@@ -36,38 +37,47 @@ class FHSDaemon(Daemon):
 
         if prefix == '/opt':
             kwargs.update({
-                'pid_file': '/var/opt/{name}/run/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/opt/{name}/log/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/opt/{name}/log/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/opt/{name}/run/{name}.pid',
+                'stdout_file': '/var/opt/{name}/log/{log_prefix}out.log',
+                'stderr_file': '/var/opt/{name}/log/{log_prefix}err.log',
             })
         elif prefix == '/usr/local':
             kwargs.update({
-                'pid_file': '/var/local/run/{name}/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/local/log/{name}/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/local/log/{name}/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/local/run/{name}/{name}.pid',
+                'stdout_file': '/var/local/log/{name}/{log_prefix}out.log',
+                'stderr_file': '/var/local/log/{name}/{log_prefix}err.log',
             })
         elif prefix == '/usr':
             kwargs.update({
-                'pid_file': '/var/run/{name}/{name}.pid'.format(
-                    name=self.name),
-                'stdout_file': '/var/log/{name}/out.log'.format(
-                    name=self.name),
-                'stderr_file': '/var/log/{name}/err.log'.format(
-                    name=self.name),
+                'pid_file': '/var/run/{name}/{name}.pid',
+                'stdout_file': '/var/log/{name}/{log_prefix}out.log',
+                'stderr_file': '/var/log/{name}/{log_prefix}err.log',
             })
         else:
             kwargs.update({
-                'pid_file': posixpath.join(
-                    prefix, 'run/{name}.pid'.format(name=self.name)),
-                'stdout_file': posixpath.join(prefix, 'log/out.log'),
-                'stderr_file': posixpath.join(prefix, 'log/err.log'),
+                'pid_file': posixpath.join(prefix, 'run/{name}.pid'),
+                'stdout_file': posixpath.join(
+                    prefix, 'log/{log_prefix}out.log'),
+                'stderr_file': posixpath.join(
+                    prefix, 'log/{log_prefix}err.log'),
             })
+
+        # Format paths
+        for key in ('pid_file', 'stdout_file', 'stderr_file'):
+            kwargs[key] = kwargs[key].format(
+                name=self.name, log_prefix=log_prefix)
+
+        if 'work_dir' in kwargs:
+            work_dir = posixpath.realpath(kwargs['work_dir'])
+            if work_dir == prefix and not posixpath.isdir(work_dir):
+                # Normally, the work_dir is required to exist, but if the
+                # work_dir is the same as the prefix, automatically create it
+                # if it doesn't exist.
+                umask = kwargs.get('umask', 0o22)
+                uid = kwargs.get('uid', os.getuid())
+                gid = kwargs.get('gid', os.getgid())
+                os.makedirs(work_dir, 0o777 & ~umask)
+                os.chown(work_dir, uid, gid)
 
         super(FHSDaemon, self).__init__(**kwargs)
 
@@ -99,8 +109,8 @@ class MultiDaemon(object):
                     kwargs[key] = kwargs[key].format(n=n)
 
             daemon = daemon_cls(**kwargs)
-            # Turn on hidden flag
-            daemon._multi = True
+            # Enable multi mode
+            daemon.worker_id = n
 
             if daemon.pid_file is None:
                 raise DaemonError('pid_file must be defined for MultiDaemon')
@@ -141,7 +151,14 @@ class MultiDaemon(object):
         # be in its own process group (handled in Daemon class).
         os.setsid()
 
+        try:
+            ctx = click.get_current_context()
+        except RuntimeError:
+            ctx = None
+
         for daemon in self._daemons:
+            if ctx is not None:
+                ctx.obj = daemon
             daemon.start(debug=debug, *args, **kwargs)
 
     def stop(self, timeout=None, force=False):

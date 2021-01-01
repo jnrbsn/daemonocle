@@ -1,8 +1,14 @@
 Release History
 ---------------
 
-v1.1.0 (2020-12-16)
+v1.1.1 (not yet released)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* The ``stop`` action will now clean up the PID file if the worker didn't
+  do it for some reason.
+
+v1.1.0 (2020-12-16)
+~~~~~~~~~~~~~~~~~~~
 
 * Official support for Python 3.9
 * Added back official support for Python 3.5
