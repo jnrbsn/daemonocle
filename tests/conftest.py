@@ -172,7 +172,7 @@ class PyScript(object):
             raise OSError('Failed to terminate subprocesses')
 
         coverage_files = []
-        for dirpath, dirnames, filenames in os.walk(self.dirname):
+        for dirpath, _, filenames in os.walk(self.dirname):
             for filename in filenames:
                 if not _re_coverage_filename.match(filename):
                     continue

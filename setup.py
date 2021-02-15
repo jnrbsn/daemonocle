@@ -44,6 +44,7 @@ setup(
         'test': [
             'coveralls',
             'flake8',
+            'flake8-bugbear',
             'flake8-isort',
             'pytest',
             'pytest-cov',
