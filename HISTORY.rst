@@ -4,7 +4,7 @@ Release History
 v1.2.0 (not yet released)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TBD
+* Dropped support for Python 2.7 and 3.5 (only >= 3.6 is now supported)
 
 v1.1.1 (2020-12-31)
 ~~~~~~~~~~~~~~~~~~~

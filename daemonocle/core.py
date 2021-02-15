@@ -21,11 +21,6 @@ from ._utils import (
     waitstatus_to_exitcode)
 from .exceptions import DaemonError
 
-if sys.version_info.major < 3:
-    text = unicode  # noqa: F821
-else:
-    text = str
-
 
 def expose_action(func):
     """This decorator makes a method into an action."""
@@ -762,7 +757,7 @@ class Daemon(object):
         default_fields = {
             'name', 'pid', 'status', 'uptime', 'cpu_percent', 'memory_percent'}
         if fields:
-            if isinstance(fields, text):
+            if isinstance(fields, str):
                 fields = {f.strip() for f in fields.split(',')}
             else:
                 fields = set(fields)

@@ -1,7 +1,6 @@
 """Utilities for building command-line interfaces for your daemons"""
 
 import inspect
-import sys
 from functools import wraps
 
 import click
@@ -10,10 +9,7 @@ from .core import Daemon
 
 
 def _parse_cli_options(func):
-    """Parse click options from a function signature (Python 3 only)"""
-    if sys.version_info.major < 3:
-        return []
-
+    """Parse click options from a function signature"""
     options = []
     for param in inspect.signature(func).parameters.values():
         if param.kind not in {param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY}:

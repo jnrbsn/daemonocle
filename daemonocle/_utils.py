@@ -68,14 +68,8 @@ _signal_number_to_name_map = {}
 
 def signal_number_to_name(signum):
     if not _signal_number_to_name_map:
-        if sys.version_info.major >= 3:
-            for s in signal.Signals:
-                _signal_number_to_name_map[s.value] = s.name
-        else:
-            for name in dir(signal):
-                if (name.isupper() and
-                        (name[:3] == 'SIG' and name[:4] != 'SIG_')):
-                    _signal_number_to_name_map[getattr(signal, name)] = name
+        for s in signal.Signals:
+            _signal_number_to_name_map[s.value] = s.name
     return _signal_number_to_name_map[signum]
 
 

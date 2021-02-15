@@ -1,12 +1,8 @@
 import os
 import posixpath
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from operator import itemgetter
-
-try:
-    from collections.abc import Callable
-except ImportError:
-    from collections import Callable
 
 import click
 import psutil

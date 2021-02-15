@@ -1,12 +1,7 @@
 import json
 import posixpath
 import re
-import sys
 import time
-
-import pytest
-
-timer = getattr(time, 'monotonic', time.time)
 
 
 def test_simple(pyscript):
@@ -138,9 +133,9 @@ def test_force_stop(pyscript):
     script.run('start')
     with open(pid_file, 'rb') as f:
         pid = int(f.read())
-    t1 = timer()
+    t1 = time.monotonic()
     result = script.run('stop', '--force')
-    t2 = timer()
+    t2 = time.monotonic()
     assert result.returncode == 0
     assert result.stdout == b'Stopping foo ... FAILED\nKilling foo ... OK\n'
     assert result.stderr == ('ERROR: Timed out while waiting for process '
@@ -173,9 +168,9 @@ def test_force_stop_custom_timeout(pyscript):
     script.run('start')
     with open(pid_file, 'rb') as f:
         pid = int(f.read())
-    t1 = timer()
+    t1 = time.monotonic()
     result = script.run('stop', '--force', '--timeout=1')
-    t2 = timer()
+    t2 = time.monotonic()
     assert result.returncode == 0
     assert result.stdout == b'Stopping foo ... FAILED\nKilling foo ... OK\n'
     assert result.stderr == ('ERROR: Timed out while waiting for process '
@@ -290,7 +285,6 @@ def test_custom_actions(pyscript):
     assert b'No such command' in result.stderr
 
 
-@pytest.mark.skipif(sys.version_info.major < 3, reason='Requires Python 3.x')
 def test_custom_actions_with_options(pyscript):
     script = pyscript("""
         import daemonocle
