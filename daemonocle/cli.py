@@ -6,6 +6,7 @@ from functools import wraps
 import click
 
 from .core import Daemon
+from .helpers import MultiDaemon
 
 
 def _parse_cli_options(func):
@@ -115,6 +116,11 @@ class DaemonCLI(click.MultiCommand):
                     help=('Number of seconds to wait for the daemon to stop. '
                           'Overrides "stop_timeout" from daemon definition.'),
                 )(subcommand)
+            if isinstance(daemon, MultiDaemon):
+                subcommand = click.option(
+                    '--worker-id', type=int, default=None,
+                    help='The ID of the worker to {}.'.format(name),
+                )(subcommand)
         elif name == 'status':
             subcommand = click.option(
                 '--fields', type=str, default=None,
@@ -124,6 +130,11 @@ class DaemonCLI(click.MultiCommand):
                 '--json', is_flag=True,
                 help='Show the status in JSON format.',
             )(subcommand)
+            if isinstance(daemon, MultiDaemon):
+                subcommand = click.option(
+                    '--worker-id', type=int, default=None,
+                    help='The ID of the worker whose status to get.',
+                )(subcommand)
         else:
             # This is a custom action so try to parse the CLI options
             # by inspecting the function

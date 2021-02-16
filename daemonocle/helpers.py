@@ -139,8 +139,13 @@ class MultiDaemon(object):
         cli = DaemonCLI(daemon=self)
         return cli()
 
-    def start(self, debug=False, *args, **kwargs):
+    def start(self, worker_id=None, debug=False, *args, **kwargs):
         """Start the daemon."""
+        if worker_id is not None:
+            daemons = [self._daemons[worker_id]]
+        else:
+            daemons = self._daemons
+
         # Do first part of detaching
         pid = os.fork()
         if pid:
@@ -155,43 +160,52 @@ class MultiDaemon(object):
         except RuntimeError:
             ctx = None
 
-        for daemon in self._daemons:
+        for daemon in daemons:
             if ctx is not None:
                 ctx.obj = daemon
             daemon.start(debug=debug, *args, **kwargs)
 
-    def stop(self, timeout=None, force=False):
+    def stop(self, worker_id=None, timeout=None, force=False):
         """Stop the daemon."""
-        for daemon in self._daemons:
+        if worker_id is not None:
+            daemons = [self._daemons[worker_id]]
+        else:
+            daemons = self._daemons
+        for daemon in daemons:
             daemon.stop(timeout=timeout, force=force)
 
-    def restart(self, timeout=None, force=False, debug=False, *args, **kwargs):
+    def restart(
+            self, worker_id=None, timeout=None, force=False, debug=False,
+            *args, **kwargs):
         """Stop then start the daemon."""
-        self.stop(timeout=timeout, force=force)
-        self.start(debug=debug, *args, **kwargs)
+        self.stop(worker_id=worker_id, timeout=timeout, force=force)
+        self.start(worker_id=worker_id, debug=debug, *args, **kwargs)
 
-    def _get_status_single(self, daemon_id, fields=None):
-        return self._daemons[daemon_id].get_status(fields=fields)
+    def get_status_single(self, worker_id, fields=None):
+        return self._daemons[worker_id].get_status(fields=fields)
 
     def get_status(self, fields=None):
         """Get the statuses of all the workers in parallel."""
         statuses = []
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-            future_to_daemon_id = {}
+            future_to_worker_id = {}
             for n in range(self.num_workers):
                 future = executor.submit(
-                    self._get_status_single, n, fields=fields)
-                future_to_daemon_id[future] = n
+                    self.get_status_single, n, fields=fields)
+                future_to_worker_id[future] = n
 
-            for future in as_completed(future_to_daemon_id):
-                n = future_to_daemon_id[future]
+            for future in as_completed(future_to_worker_id):
+                n = future_to_worker_id[future]
                 statuses.append((n, future.result()))
 
         return [s[1] for s in sorted(statuses, key=itemgetter(0))]
 
-    def status(self, json=False, fields=None):
+    def status(self, worker_id=None, json=False, fields=None):
         """Get the status of the daemon."""
-        statuses = self.get_status(fields=fields)
+        if worker_id is not None:
+            statuses = [self.get_status_single(worker_id, fields=fields)]
+        else:
+            statuses = self.get_status(fields=fields)
 
         if json:
             status_width = max(len(json_encode(s)) for s in statuses)

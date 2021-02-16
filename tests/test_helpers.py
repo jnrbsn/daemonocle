@@ -307,6 +307,87 @@ def test_multi_daemon_single_worker(pyscript):
         assert result.stderr == b''
 
 
+def test_multi_daemon_action_worker_id(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle.helpers import MultiDaemon
+
+        def worker():
+            time.sleep(10)
+
+        MultiDaemon(
+            name='foo_{n}',
+            worker=worker,
+            pid_file='foo.{n}.pid',
+            num_workers=2,
+        ).cli()
+    """)
+
+    try:
+        result = script.run('start', '--worker-id=0')
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo_0 ... OK\n'
+        assert result.stderr == b''
+
+        result = script.run('status', '--json', '--fields=name,status')
+        status = json.loads(result.stdout.decode().rstrip('\n'))
+        assert status[0]['name'] == 'foo_0'
+        assert status[0]['status'] in {'running', 'sleeping'}
+        assert status[1]['name'] == 'foo_1'
+        assert status[1]['status'] == 'dead'
+
+        result = script.run('start', '--worker-id=1')
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo_1 ... OK\n'
+        assert result.stderr == b''
+
+        result = script.run('status', '--json', '--fields=name,status')
+        status = json.loads(result.stdout.decode().rstrip('\n'))
+        assert status[0]['name'] == 'foo_0'
+        assert status[0]['status'] in {'running', 'sleeping'}
+        assert status[1]['name'] == 'foo_1'
+        assert status[1]['status'] in {'running', 'sleeping'}
+
+        result = script.run('restart', '--worker-id=0')
+        assert result.returncode == 0
+        assert result.stdout == (
+            b'Stopping foo_0 ... OK\n'
+            b'Starting foo_0 ... OK\n')
+        assert result.stderr == b''
+
+        result = script.run('restart', '--worker-id=1')
+        assert result.returncode == 0
+        assert result.stdout == (
+            b'Stopping foo_1 ... OK\n'
+            b'Starting foo_1 ... OK\n')
+        assert result.stderr == b''
+
+        result = script.run(
+            'status', '--worker-id=0', '--json', '--fields=name,status')
+        status = json.loads(result.stdout.decode().rstrip('\n'))
+        assert len(status) == 1
+        assert status[0]['name'] == 'foo_0'
+        assert status[0]['status'] in {'running', 'sleeping'}
+
+        result = script.run(
+            'status', '--worker-id=1', '--json', '--fields=name,status')
+        status = json.loads(result.stdout.decode().rstrip('\n'))
+        assert len(status) == 1
+        assert status[0]['name'] == 'foo_1'
+        assert status[0]['status'] in {'running', 'sleeping'}
+    finally:
+        result = script.run('stop', '--worker-id=0')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo_0 ... OK\n'
+        assert result.stderr == b''
+
+        result = script.run('stop', '--worker-id=1')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo_1 ... OK\n'
+        assert result.stderr == b''
+
+
 def test_multi_daemon_error_no_workers():
     with pytest.raises(DaemonError) as exc_info:
         MultiDaemon(num_workers=0, worker=lambda: None, pid_file='foo.{n}.pid')
