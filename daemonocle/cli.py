@@ -57,95 +57,92 @@ class DaemonCLI(click.MultiCommand):
             self, callback=None, daemon_params=None, is_worker=True,
             daemon_class=Daemon, daemon=None, **kwargs):
         """Create a new DaemonCLI object."""
-        self.daemon_params = daemon_params or {}
-        self.daemon_class = (
-            daemon_class if daemon is None else daemon.__class__)
+        daemon_params = daemon_params or {}
+        if daemon is None:
+            self.daemon = daemon_class(**daemon_params)
+        else:
+            self.daemon = daemon
+
         self.is_worker = (
             is_worker and callback is not None and callable(callback))
 
-        if daemon is None:
-            daemon = self.daemon_class(**self.daemon_params)
-
-        if ((not daemon.worker or not callable(daemon.worker)) and
+        if ((not self.daemon.worker or not callable(self.daemon.worker)) and
                 self.is_worker):
             # If the callback is the worker, then don't pass the
             # callback to the parent class so we don't call it twice
-            daemon.worker = callback
+            self.daemon.worker = callback
             callback = None
 
         # The context object will be the Daemon object
-        context_settings = {'obj': daemon}
+        context_settings = {'obj': self.daemon}
 
         if not kwargs.get('help'):
-            kwargs['help'] = daemon.worker.__doc__
+            kwargs['help'] = self.daemon.worker.__doc__
 
         super(DaemonCLI, self).__init__(
             callback=callback, context_settings=context_settings, **kwargs)
 
     def list_commands(self, ctx):
         """Get a list of subcommands."""
-        return self.daemon_class.list_actions()
+        return self.daemon.list_actions()
 
     def get_command(self, ctx, name):
         """Get a callable command object."""
-        if name not in self.daemon_class.list_actions():
+        if name not in self.daemon.list_actions():
             return None
 
-        # The context object is a Daemon object
-        daemon = ctx.obj
-
-        action = daemon.get_action(name)
+        action = self.daemon.get_action(name)
 
         @wraps(action)
-        def subcommand(*args, **kwargs):
+        def command(*args, **kwargs):
             return action(*args, **kwargs)
 
         if name in {'start', 'stop', 'restart'}:
             if name in {'start', 'restart'}:
-                subcommand = click.option(
+                command = click.option(
                     '--debug', is_flag=True,
                     help='Do NOT detach and run in the background.',
-                )(subcommand)
+                )(command)
             if name in {'stop', 'restart'}:
-                subcommand = click.option(
+                command = click.option(
                     '--force', is_flag=True,
                     help='Kill the daemon forcefully after the timeout.',
-                )(subcommand)
-                subcommand = click.option(
+                )(command)
+                command = click.option(
                     '--timeout', type=int, default=None,
                     help=('Number of seconds to wait for the daemon to stop. '
                           'Overrides "stop_timeout" from daemon definition.'),
-                )(subcommand)
-            if isinstance(daemon, MultiDaemon):
-                subcommand = click.option(
+                )(command)
+            if isinstance(self.daemon, MultiDaemon):
+                command = click.option(
                     '--worker-id', type=int, default=None,
                     help='The ID of the worker to {}.'.format(name),
-                )(subcommand)
+                )(command)
         elif name == 'status':
-            subcommand = click.option(
+            command = click.option(
                 '--fields', type=str, default=None,
                 help='Comma-separated list of process info fields to display.',
-            )(subcommand)
-            subcommand = click.option(
+            )(command)
+            command = click.option(
                 '--json', is_flag=True,
                 help='Show the status in JSON format.',
-            )(subcommand)
-            if isinstance(daemon, MultiDaemon):
-                subcommand = click.option(
+            )(command)
+            if isinstance(self.daemon, MultiDaemon):
+                command = click.option(
                     '--worker-id', type=int, default=None,
                     help='The ID of the worker whose status to get.',
-                )(subcommand)
+                )(command)
         else:
             # This is a custom action so try to parse the CLI options
             # by inspecting the function
             for option_args, option_kwargs in _parse_cli_options(action):
-                subcommand = click.option(
-                    *option_args, **option_kwargs)(subcommand)
+                command = click.option(
+                    *option_args, **option_kwargs)(command)
 
         # Make it into a click command
-        subcommand = click.command(name)(subcommand)
+        command = click.command(name)(command)
 
-        return subcommand
+        return command
 
 
 def cli(**daemon_params):
