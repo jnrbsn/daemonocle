@@ -1,6 +1,11 @@
 Release History
 ---------------
 
+v1.2.1 (2021-02-16)
+~~~~~~~~~~~~~~~~~~~
+
+* Minor tweaks to an undocumented experimental feature
+
 v1.2.0 (2021-02-15)
 ~~~~~~~~~~~~~~~~~~~
 
