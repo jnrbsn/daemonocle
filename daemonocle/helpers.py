@@ -248,6 +248,8 @@ class ExecWorker(Callable):
         self.args = tuple(to_bytes(a) for a in args)
         if b'/' in self.name:
             self.name = posixpath.realpath(self.name)
+        self.__doc__ = 'Run "{}" as a daemon.'.format(
+            self.name.decode('ascii', errors='backslashreplace'))
 
     def __call__(self):  # pragma: no cover
         exec_prog = os.execv if self.name[0] == b'/' else os.execvp

@@ -7,7 +7,7 @@ import psutil
 import pytest
 
 from daemonocle import DaemonError
-from daemonocle.helpers import FHSDaemon, MultiDaemon
+from daemonocle.helpers import ExecWorker, FHSDaemon, MultiDaemon
 
 
 @pytest.mark.skipif(not psutil.LINUX, reason='only run on Linux')
@@ -425,6 +425,13 @@ def test_exec_worker(pyscript):
             detach=False,
         ).cli()
     """)
+
+    result = script.run('--help')
+    assert result.returncode == 0
+    assert b'Run "/bin/echo" as a daemon.' in result.stdout
+    assert ExecWorker.__doc__ not in result.stdout.decode()
+    assert result.stderr == b''
+
     result = script.run('start')
     assert result.returncode == 0
     assert result.stdout == (
@@ -445,6 +452,12 @@ def test_exec_worker_detached(pyscript):
             pid_file='goodnight_world.pid',
         ).cli()
     """)
+
+    result = script.run('--help')
+    assert result.returncode == 0
+    assert b'Run "sleep" as a daemon.' in result.stdout
+    assert result.stderr == b''
+
     pid_file = posixpath.realpath(posixpath.join(
         script.dirname, 'goodnight_world.pid'))
 
