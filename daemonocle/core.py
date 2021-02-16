@@ -28,6 +28,44 @@ def expose_action(func):
     return func
 
 
+def list_actions(daemon_or_class):
+    """Get a list of exposed actions that are callable via the
+    ``do_action()`` method."""
+    # Make sure these are always at the beginning of the list
+    actions = ['start', 'stop', 'restart', 'status']
+    # Iterate over the instance attributes checking for actions that
+    # have been exposed
+    for func_name in dir(daemon_or_class):
+        func = getattr(daemon_or_class, func_name)
+        if (not callable(func) or
+                not getattr(func, '__daemonocle_exposed__', False)):
+            # Not a function or not exposed
+            continue
+        action = func_name.replace('_', '-')
+        if action not in actions:
+            actions.append(action)
+
+    return actions
+
+
+def get_action(daemon, action):
+    """Get a callable action."""
+    func_name = action.replace('-', '_')
+    if not hasattr(daemon, func_name):
+        # Function doesn't exist
+        raise DaemonError(
+            'Invalid action "{action}"'.format(action=action))
+
+    func = getattr(daemon, func_name)
+    if (not callable(func) or
+            not getattr(func, '__daemonocle_exposed__', False)):
+        # Not a function or not exposed
+        raise DaemonError(
+            'Invalid action "{action}"'.format(action=action))
+
+    return func
+
+
 class Daemon(object):
     """This is the main class for creating a daemon using daemonocle."""
 
@@ -838,38 +876,11 @@ class Daemon(object):
     def list_actions(cls):
         """Get a list of exposed actions that are callable via the
         ``do_action()`` method."""
-        # Make sure these are always at the beginning of the list
-        actions = ['start', 'stop', 'restart', 'status']
-        # Iterate over the instance attributes checking for actions that
-        # have been exposed
-        for func_name in dir(cls):
-            func = getattr(cls, func_name)
-            if (not callable(func) or
-                    not getattr(func, '__daemonocle_exposed__', False)):
-                # Not a function or not exposed
-                continue
-            action = func_name.replace('_', '-')
-            if action not in actions:
-                actions.append(action)
-
-        return actions
+        return list_actions(cls)
 
     def get_action(self, action):
         """Get a callable action."""
-        func_name = action.replace('-', '_')
-        if not hasattr(self, func_name):
-            # Function doesn't exist
-            raise DaemonError(
-                'Invalid action "{action}"'.format(action=action))
-
-        func = getattr(self, func_name)
-        if (not callable(func) or
-                not getattr(func, '__daemonocle_exposed__', False)):
-            # Not a function or not exposed
-            raise DaemonError(
-                'Invalid action "{action}"'.format(action=action))
-
-        return func
+        return get_action(self, action)
 
     def do_action(self, action, *args, **kwargs):
         """Call an action by name."""

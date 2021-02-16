@@ -9,7 +9,7 @@ import psutil
 
 from daemonocle._utils import (
     format_elapsed_time, json_encode, to_bytes, waitstatus_to_exitcode)
-from daemonocle.core import Daemon
+from daemonocle.core import Daemon, expose_action, get_action, list_actions
 from daemonocle.exceptions import DaemonError
 
 
@@ -122,13 +122,10 @@ class MultiDaemon(object):
 
     @classmethod
     def list_actions(cls):
-        return ['start', 'stop', 'restart', 'status']
+        return list_actions(cls)
 
     def get_action(self, action):
-        if action not in self.list_actions():
-            raise DaemonError(
-                'Invalid action "{action}"'.format(action=action))
-        return getattr(self, action)
+        return get_action(self, action)
 
     def do_action(self, action, *args, **kwargs):
         func = self.get_action(action)
@@ -139,6 +136,7 @@ class MultiDaemon(object):
         cli = DaemonCLI(daemon=self)
         return cli()
 
+    @expose_action
     def start(self, worker_id=None, debug=False, *args, **kwargs):
         """Start the daemon."""
         if worker_id is not None:
@@ -165,6 +163,7 @@ class MultiDaemon(object):
                 ctx.obj = daemon
             daemon.start(debug=debug, *args, **kwargs)
 
+    @expose_action
     def stop(self, worker_id=None, timeout=None, force=False):
         """Stop the daemon."""
         if worker_id is not None:
@@ -174,6 +173,7 @@ class MultiDaemon(object):
         for daemon in daemons:
             daemon.stop(timeout=timeout, force=force)
 
+    @expose_action
     def restart(
             self, worker_id=None, timeout=None, force=False, debug=False,
             *args, **kwargs):
@@ -200,6 +200,7 @@ class MultiDaemon(object):
 
         return [s[1] for s in sorted(statuses, key=itemgetter(0))]
 
+    @expose_action
     def status(self, worker_id=None, json=False, fields=None):
         """Get the status of the daemon."""
         if worker_id is not None:
