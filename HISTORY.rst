@@ -5,6 +5,8 @@ v1.2.0 (not yet released)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Dropped support for Python 2.7 and 3.5 (only >= 3.6 is now supported)
+* Deprecated ``shutdown_callback`` argument in favor of new hooks system.
+  Replace ``shutdown_callback=func`` with ``hooks={'shutdown': func}``.
 
 v1.1.1 (2020-12-31)
 ~~~~~~~~~~~~~~~~~~~

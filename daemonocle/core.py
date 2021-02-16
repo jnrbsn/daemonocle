@@ -48,14 +48,15 @@ class Daemon(object):
         gid=None,
         umask=0o22,
         close_open_files=False,
-        # Related to stopping / shutting down
-        shutdown_callback=None,
+        # Related to specific actions
+        hooks=None,
         stop_timeout=10,
-        # Deprecated aliases
+        # Deprecated arguments
         prog=None,
         pidfile=None,
         workdir='/',
         chrootdir=None,
+        shutdown_callback=None,
     ):
         """Create a new Daemon object."""
 
@@ -86,7 +87,16 @@ class Daemon(object):
         self.umask = umask
         self.close_open_files = close_open_files
 
-        self.shutdown_callback = shutdown_callback
+        self.hooks = hooks or {}
+        if shutdown_callback is not None:
+            # Convert deprecated shutdown_callback argument into hook
+            self.hooks['shutdown'] = shutdown_callback
+        for hook_name, hook_callback in self.hooks.items():
+            if not callable(hook_callback):
+                raise DaemonError(
+                    'Callback for hook "{hook_name}" is not callable'.format(
+                        hook_name=hook_name))
+
         self.stop_timeout = stop_timeout
 
         if self.chroot_dir is not None:
@@ -538,16 +548,20 @@ class Daemon(object):
                 cls._echo('\n')
                 continue
 
+    def _run_hook(self, name, *args, **kwargs):
+        hook_callback = self.hooks.get(name, None)
+        if hook_callback is not None:
+            hook_callback(*args, **kwargs)
+
     def _shutdown(self, message=None, code=0):
         """Shutdown and cleanup everything."""
         if self._shutdown_complete:
             # Make sure we don't accidentally re-run the all cleanup
             exit(code)
 
-        if self.shutdown_callback is not None:
-            # Call the shutdown callback with a message suitable for
-            # logging and the exit code
-            self.shutdown_callback(message, code)
+        # Call the shutdown hook with a message suitable for
+        # logging and the exit code
+        self._run_hook('shutdown', message, code)
 
         if self.pid_file is not None:
             self._close_pid_file()

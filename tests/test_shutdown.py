@@ -4,6 +4,9 @@ import re
 import signal
 
 import psutil
+import pytest
+
+from daemonocle import Daemon, DaemonError
 
 
 def test_sys_exit_message(pyscript):
@@ -24,7 +27,7 @@ def test_sys_exit_message(pyscript):
                 f.write(message)
 
         daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
-                        shutdown_callback=shutdown_callback)
+                        hooks={'shutdown': shutdown_callback})
         daemon.do_action('start')
     """)
     script.run()
@@ -55,7 +58,7 @@ def test_uncaught_exception(pyscript):
                 f.write(message)
 
         daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
-                        shutdown_callback=shutdown_callback)
+                        hooks={'shutdown': shutdown_callback})
         daemon.do_action('start')
     """)
     script.run()
@@ -139,8 +142,8 @@ def test_unresponsive_reload(pyscript):
             if not os.environ.get('DAEMONOCLE_RELOAD'):
                 time.sleep(2)
 
-        daemon = Daemon(worker=worker, shutdown_callback=shutdown_callback,
-                        name='foo', pid_file='foo.pid', detach=False,
+        daemon = Daemon(worker=worker, name='foo', pid_file='foo.pid',
+                        detach=False, hooks={'shutdown': shutdown_callback},
                         stop_timeout=1)
 
         daemon.do_action('start')
@@ -164,3 +167,19 @@ def test_unresponsive_reload(pyscript):
     pid2 = match.group(1)
 
     assert pid1 == pid2
+
+
+def test_deprecated_shutdown_callback_converted_to_hook():
+    def shutdown_callback(message, returncode):
+        pass
+
+    daemon = Daemon(
+        name='foo', worker=lambda: None, shutdown_callback=shutdown_callback)
+    assert daemon.hooks['shutdown'] is shutdown_callback
+
+
+def test_bad_shutdown_hook():
+    with pytest.raises(DaemonError) as exc_info:
+        Daemon(name='foo', worker=lambda: None, hooks={'shutdown': 1})
+    assert str(exc_info.value) == (
+        'Callback for hook "shutdown" is not callable')
