@@ -634,6 +634,8 @@ class Daemon(object):
         if debug:
             self.detach = False
 
+        self._run_hook('start', debug=debug)
+
         if os.environ.get('DAEMONOCLE_RELOAD'):
             # If this is actually a reload, we need to wait for the
             # existing daemon to exit first

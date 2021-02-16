@@ -480,3 +480,29 @@ def test_subclass(pyscript):
         b'also 1ZX5KG8RWZwewPFSgkWhtQiuWfAGTobEtFM\n'
         b'All children are gone. Parent is exiting...\n')
     assert result.stderr == b''
+
+
+def test_start_hook(pyscript):
+    script = pyscript("""
+        from daemonocle import Daemon
+
+        def start_hook(debug):
+            print('debug={!r}'.format(debug))
+            print('2NJSuZFwJcgHYGWup4xHzFR8MtdTUE3johy')
+
+        def main():
+            print('1ZCW56TawPekaVmeQ1GwEg8BgrpPhsvp41s')
+
+        if __name__ == '__main__':
+            Daemon(name='foo', worker=main, hooks={'start': start_hook}).cli()
+    """)
+
+    result = script.run('start', '--debug')
+    assert result.returncode == 0
+    assert result.stdout == (
+        b'debug=True\n'
+        b'2NJSuZFwJcgHYGWup4xHzFR8MtdTUE3johy\n'
+        b'Starting foo ... OK\n'
+        b'1ZCW56TawPekaVmeQ1GwEg8BgrpPhsvp41s\n'
+        b'All children are gone. Parent is exiting...\n')
+    assert result.stderr == b''
