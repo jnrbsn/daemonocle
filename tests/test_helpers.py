@@ -270,6 +270,49 @@ def test_multi_daemon_basic(pyscript):
         assert result.stderr == b''
 
 
+def test_multi_daemon_single_worker(pyscript):
+    script = pyscript("""
+        import sys
+        import time
+        from daemonocle.helpers import MultiDaemon
+
+        def worker():
+            time.sleep(10)
+
+        multi_daemon = MultiDaemon(
+            name='foo_{n}',
+            worker=worker,
+            pid_file='foo.{n}.pid',
+            num_workers=1,
+        )
+        multi_daemon.do_action(sys.argv[1])
+    """)
+
+    result = script.run('start')
+    try:
+        assert result.returncode == 0
+        assert result.stdout == b'Starting foo_0 ... OK\n'
+        assert result.stderr == b''
+
+        result = script.run('restart')
+        assert result.returncode == 0
+        assert result.stdout == (
+            b'Stopping foo_0 ... OK\n'
+            b'Starting foo_0 ... OK\n')
+        assert result.stderr == b''
+    finally:
+        result = script.run('stop')
+        assert result.returncode == 0
+        assert result.stdout == b'Stopping foo_0 ... OK\n'
+        assert result.stderr == b''
+
+
+def test_multi_daemon_error_no_workers():
+    with pytest.raises(DaemonError) as exc_info:
+        MultiDaemon(num_workers=0, worker=lambda: None, pid_file='foo.{n}.pid')
+    assert str(exc_info.value) == 'num_workers must be >= 1 for MultiDaemon'
+
+
 def test_multi_daemon_error_no_pid_file():
     with pytest.raises(DaemonError) as exc_info:
         MultiDaemon(num_workers=2, worker=lambda: None)

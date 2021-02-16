@@ -82,7 +82,10 @@ class MultiDaemon(object):
     """Daemon wrapper class that manages multiple copies of the same worker"""
 
     def __init__(self, num_workers, daemon_cls=Daemon, **daemon_kwargs):
-        self.num_workers = max(num_workers, 2)
+        if num_workers < 1:
+            raise DaemonError('num_workers must be >= 1 for MultiDaemon')
+
+        self.num_workers = num_workers
         self.worker = daemon_kwargs.get('worker', None)
         self._daemons = []
 
@@ -93,7 +96,7 @@ class MultiDaemon(object):
             kwargs_to_format.update(('pid_file', 'stdout_file', 'stderr_file'))
 
         pid_files = set()
-        for n in range(num_workers):
+        for n in range(self.num_workers):
             kwargs = daemon_kwargs.copy()
             kwargs.update({
                 'chrootdir': None,
