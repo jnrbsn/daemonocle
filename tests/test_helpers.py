@@ -428,7 +428,8 @@ def test_exec_worker(pyscript):
 
     result = script.run('--help')
     assert result.returncode == 0
-    assert b'Run "/bin/echo" as a daemon.' in result.stdout
+    echo_realpath = posixpath.realpath(b'/bin/echo')
+    assert (b'Run "%s" as a daemon.' % echo_realpath) in result.stdout
     assert ExecWorker.__doc__ not in result.stdout.decode()
     assert result.stderr == b''
 
