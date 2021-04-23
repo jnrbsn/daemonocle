@@ -672,9 +672,9 @@ class Daemon(object):
         if debug:
             self.detach = False
 
-        self._run_hook('start', debug=debug)
+        is_reload = os.environ.get('DAEMONOCLE_RELOAD')
 
-        if os.environ.get('DAEMONOCLE_RELOAD'):
+        if is_reload:
             # If this is actually a reload, we need to wait for the
             # existing daemon to exit first
             self._echo('Reloading {name} ... '.format(name=self.name))
@@ -699,7 +699,10 @@ class Daemon(object):
                 name=self.name, pid=pid))
             return
 
-        if not self.detach and not os.environ.get('DAEMONOCLE_RELOAD'):
+        if not is_reload:
+            self._run_hook('start', debug=debug)
+
+        if not self.detach and not is_reload:
             # Setup signal handlers that forward to the worker
             signal.signal(signal.SIGINT, self._forward_signal_to_worker)
             signal.signal(signal.SIGQUIT, self._forward_signal_to_worker)
@@ -708,7 +711,7 @@ class Daemon(object):
             # maintain control of the tty
             self._fork_and_supervise_child()
 
-        if not os.environ.get('DAEMONOCLE_RELOAD'):
+        if not is_reload:
             # A custom message is printed for reloading
             self._echo('Starting {name} ... '.format(name=self.name))
 
