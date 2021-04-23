@@ -8,7 +8,7 @@ with open('HISTORY.rst', 'r') as f:
 
 setup(
     name='daemonocle',
-    version='1.2.2',
+    version='1.2.3.dev0',
     description='A Python library for creating super fancy Unix daemons',
     long_description=long_description,
     long_description_content_type='text/x-rst',
