@@ -1,8 +1,8 @@
 Release History
 ---------------
 
-v1.2.3 (not yet released)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+v1.2.3 (2021-04-22)
+~~~~~~~~~~~~~~~~~~~
 
 * Pass args to click from Daemon.cli()
 * Don't run start hook on reload or when the daemon is already running
