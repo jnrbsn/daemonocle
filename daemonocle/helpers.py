@@ -131,10 +131,10 @@ class MultiDaemon(object):
         func = self.get_action(action)
         return func(*args, **kwargs)
 
-    def cli(self):
+    def cli(self, *args, **kwargs):
         from daemonocle.cli import DaemonCLI
         cli = DaemonCLI(daemon=self)
-        return cli()
+        return cli(*args, **kwargs)
 
     @expose_action
     def start(self, worker_id=None, debug=False, *args, **kwargs):

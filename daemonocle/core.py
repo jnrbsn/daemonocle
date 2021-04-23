@@ -887,11 +887,11 @@ class Daemon(object):
         func = self.get_action(action)
         return func(*args, **kwargs)
 
-    def cli(self):
+    def cli(self, *args, **kwargs):
         """Invoke the CLI."""
         from daemonocle.cli import DaemonCLI
         cli = DaemonCLI(daemon=self)
-        return cli()
+        return cli(*args, **kwargs)
 
     def reload(self):
         """Make the daemon reload itself."""
